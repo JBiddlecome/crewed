@@ -123,13 +123,24 @@ check("Shift now filled", "filled" in r.text.lower())
 # Worker submits timesheet (shift is tomorrow; needs_timesheet requires date <= today,
 # so submit directly — the route allows pending timesheets any time)
 r = worker_http.post("/employee/timesheets/1/submit", data={
-    "start_time": "16:00", "end_time": "22:30", "break_minutes": "30",
+    "start_time": "16:00", "end_time": "22:30", "meal_start_time": "19:00", "meal_end_time": "19:30",
 })
 check("Timesheet submitted (6.00 hrs)", "6.00 hours" in r.text)
 
-# Client approves timesheet
-r = client_http.post("/client/timesheets/1/approve")
-check("Client approves timesheet", "Timesheet approved" in r.text)
+# Client approves timesheet with adjustment (dispute)
+r = client_http.post("/client/timesheets/1/approve", data={
+    "start_time": "16:00", "end_time": "22:00", "meal_start_time": "19:00", "meal_end_time": "19:30", "dispute_reason": "Client sent home early"
+})
+check("Client approves timesheet with adjustment (5.50 hrs billing)", "approved" in r.text and "Hours adjusted for billing" in r.text)
+
+# Employee history shows both hours
+r = worker_http.get("/employee/myshifts")
+check("Employee history shows dispute warning", "Adjusted for billing" in r.text)
+
+# Admin dashboard shows the dispute
+r = admin_http.get("/admin")
+check("Admin dashboard shows disputed timesheet", "Client sent home early" in r.text and "Wes Worker" in r.text)
+
 
 # ---- Location details / calendar / day view / messaging ----
 
@@ -250,13 +261,230 @@ check("Blocked worker prevented from applying", "block list" in r.text.lower())
 r = client_http.post("/client/crew/blocklist/1/delete")
 check("Worker unblocked", r.status_code == 200)
 
+# ---- Admin Crew Management Tests ----
+# Admin views the client detail page (should show the current A-List entry 'Top tier')
+r = admin_http.get("/admin/clients/1")
+check("Admin views client detail page with crew lists", r.status_code == 200 and "Top tier" in r.text and "Add to A-List" in r.text)
+
+# Admin blocks the worker
+r = admin_http.post("/admin/clients/1/crew/blocklist", data={"employee_id": "3", "location_id": "0", "reason": "Blocked by admin"})
+check("Admin blocks worker", r.status_code == 200 and "Blocked by admin" in r.text)
+
+# Admin removes the worker from Block List (Block list entry ID 1, since the table was empty and ID was reused)
+r = admin_http.post("/admin/clients/1/crew/blocklist/1/delete")
+check("Admin unblocks worker", r.status_code == 200 and "Removed Wes Worker from Block List" in r.text)
+
+# ---- Timesheet Locking & Closeout, Past-Due Hard Block, and Timeclock Tests ----
+
+# 1. Post a shift for tomorrow first, so the worker can apply to it
+tomorrow_str = (date.today() + timedelta(days=2)).isoformat()
+r = client_http.post("/client/shifts/new", data={
+    "location_id": "1", "client_position_id": "1", "shift_date": tomorrow_str,
+    "start_time": "09:00", "end_time": "17:00", "headcount": "1",
+    "pay_rate": "22.00", "notes": "Past-due shift test",
+})
+check("Past-due shift posted (originally for tomorrow)", r.status_code == 200)
+
+# Worker applies to it (Shift ID 4)
+r = worker_http.post("/employee/shifts/4/apply")
+check("Worker applies to shift", "Applied to" in r.text)
+
+# Client confirms worker for it (Assignment ID 3, since we cancelled 2)
+r = client_http.post("/client/assignments/3/confirm")
+check("Client confirms worker", "confirmed" in r.text)
+
+# Now, update the shift date programmatically in the database to yesterday!
+from app.db import SessionLocal
+from app import models
+db_sess = SessionLocal()
+db_sess.query(models.Shift).filter_by(id=4).update({"shift_date": date.today() - timedelta(days=1)})
+db_sess.commit()
+db_sess.close()
+
+
+# Since the shift is in the past and status is pending, worker must be blocked
+r = worker_http.get("/employee")
+check("Worker blocked by past-due timesheet modal", "hard-block-overlay" in r.text and "Submit Missing Timesheet" in r.text)
+
+# Worker tries to update profile while blocked (POST request)
+r = worker_http.post("/employee/profile/info", data={"phone": "123-4567"})
+check("Worker POST profile action rejected while blocked", "past-due timesheet" in r.text)
+
+# Worker submits yesterday's timesheet to clear the block (using meal times)
+r = worker_http.post("/employee/timesheets/3/submit", data={
+    "start_time": "09:00", "end_time": "17:00", "meal_start_time": "12:00", "meal_end_time": "12:30",
+})
+check("Worker submits past-due timesheet", "submitted" in r.text)
+
+# Worker is no longer blocked
+r = worker_http.get("/employee")
+check("Worker no longer blocked after submitting", "hard-block-overlay" not in r.text)
+
+# Client approves yesterday's timesheet (Timesheet ID 3)
+r = client_http.post("/client/timesheets/3/approve", data={
+    "start_time": "09:00", "end_time": "17:00", "meal_start_time": "12:00", "meal_end_time": "12:30",
+})
+check("Client approves yesterday's timesheet", "approved" in r.text)
+
+# Admin views and edits yesterday's timesheet (Timesheet ID 3) to adjust pay and billing hours
+r = admin_http.post("/admin/timesheets/3/edit", data={
+    "start_time": "09:00", "end_time": "17:00", "meal_start_time": "12:00", "meal_end_time": "12:30",
+    "billing_start_time": "09:00", "billing_end_time": "16:30", "billing_meal_start_time": "12:00", "billing_meal_end_time": "12:30",
+    "is_disputed": "true", "dispute_reason": "Admin adjustment",
+})
+check("Admin successfully overrides timesheet hours", r.status_code == 200)
+
+# Admin closes out the timesheet (locks it)
+r = admin_http.post("/admin/timesheets/3/close")
+check("Admin closes timesheet", "closed (locked)" in r.text)
+
+# Worker tries to edit closed timesheet (POST /employee/timesheets/3/edit)
+r = worker_http.post("/employee/timesheets/3/edit", data={
+    "start_time": "09:00", "end_time": "17:00", "meal_start_time": "12:00", "meal_end_time": "12:30",
+})
+check("Worker edit blocked on closed timesheet", "timesheet is closed" in r.text)
+
+# Client tries to edit closed timesheet (POST /client/timesheets/3/edit)
+r = client_http.post("/client/timesheets/3/edit", data={
+    "start_time": "09:00", "end_time": "17:00", "meal_start_time": "12:00", "meal_end_time": "12:30",
+})
+check("Client edit blocked on closed timesheet", "timesheet is closed" in r.text)
+
+# 2. Timeclock functionality test
+# Post a shift for today
+today_str = date.today().isoformat()
+r = client_http.post("/client/shifts/new", data={
+    "location_id": "1", "client_position_id": "1", "shift_date": today_str,
+    "start_time": "10:00", "end_time": "18:00", "headcount": "1",
+    "pay_rate": "22.00", "notes": "Timeclock shift test",
+})
+check("Today's shift posted", r.status_code == 200)
+
+# Worker applies
+r = worker_http.post("/employee/shifts/5/apply")
+check("Worker applies to today's shift", r.status_code == 200)
+
+# Client confirms
+r = client_http.post("/client/assignments/4/confirm")
+check("Client confirms worker for today", r.status_code == 200)
+
+# Worker views dashboard today, should see the active timeclock
+r = worker_http.get("/employee")
+check("Worker dashboard shows today's timeclock", "Today's Timeclock" in r.text and "Clock In" in r.text)
+
+# Worker clocks in (Timesheet ID 4)
+r = worker_http.post("/employee/timeclock/4/event", data={"event_type": "clock_in", "event_time": "10:05"})
+check("Worker clocks in successfully", "Clocked in at 10:05" in r.text)
+
+# Worker starts break
+r = worker_http.post("/employee/timeclock/4/event", data={"event_type": "meal_start", "event_time": "13:00"})
+check("Worker starts meal break", "Meal break started at 13:00" in r.text)
+
+# Worker ends break
+r = worker_http.post("/employee/timeclock/4/event", data={"event_type": "meal_end", "event_time": "13:30"})
+check("Worker ends meal break", "Meal break ended at 13:30" in r.text)
+
+# Worker clocks out (timesheet is submitted)
+r = worker_http.post("/employee/timeclock/4/event", data={"event_type": "clock_out", "event_time": "18:05"})
+check("Worker clocks out successfully", "Clocked out at 18:05" in r.text and "submitted" in r.text)
+
+
 # Auth guard: logged-out user is redirected
 anon = TestClient(app, follow_redirects=False)
 r = anon.get("/client/shifts")
 check("Auth guard redirects anonymous users", r.status_code == 303)
+
+
+# --- Profile Picture & Resume / AI Position Verification Integration Tests ---
+import io
+from app.db import SessionLocal
+import app.models as models
+import app.routers.employee as employee_router
+
+# 1. Test profile picture check restriction when FORCE_PICTURE_CHECK is active
+os.environ["FORCE_PICTURE_CHECK"] = "true"
+next_week = (date.today() + timedelta(days=7)).isoformat()
+
+# Post a new open shift (will be shift 6)
+r = client_http.post("/client/shifts/new", data={
+    "location_id": "1", "client_position_id": "1", "shift_date": next_week,
+    "start_time": "16:00", "end_time": "22:00", "headcount": "1",
+    "pay_rate": "22.00", "notes": "Profile pic test",
+})
+check("Shift 6 posted for profile pic check", r.status_code == 200)
+
+# Worker tries to apply to shift 6 without profile picture uploaded
+r = worker_http.post("/employee/shifts/6/apply")
+check("Worker without profile picture blocked from applying", "must upload a profile picture" in r.text)
+
+# Worker uploads profile picture
+photo_data = b"fake-jpeg-photo-content"
+r = worker_http.post("/employee/profile/photo", files={"photo": ("test_pic.jpg", io.BytesIO(photo_data), "image/jpeg")})
+check("Profile picture uploaded successfully", "uploaded successfully" in r.text)
+
+# Manually set user's profile picture approval to false to simulate pending status
+db_sess = SessionLocal()
+wes = db_sess.query(models.User).filter_by(email="wes@worker.test").first()
+wes.profile_picture_approved = False
+db_sess.commit()
+
+# Worker tries to apply to shift 6 with pending profile picture approval
+r = worker_http.post("/employee/shifts/6/apply")
+check("Worker with pending profile picture blocked from applying", "pending admin approval" in r.text)
+
+# Admin approves the photo
+r = admin_http.post("/admin/employees/3/approve_photo")
+check("Admin approves profile picture", "Approved profile picture for Wes" in r.text)
+
+# Worker applies to shift 6 successfully now
+r = worker_http.post("/employee/shifts/6/apply")
+check("Worker with approved profile picture can apply", "Applied to" in r.text)
+
+# 2. Test Resume upload and AI position verification logic
+# Save original DATA_DIR and monkeypatch screen_candidate_for_position
+orig_env_data_dir = os.environ.get("DATA_DIR")
+os.environ["DATA_DIR"] = "/tmp/real_run_to_bypass_is_test"  # Bypasses is_test so it runs screen_candidate_for_position
+
+orig_screen = employee_router.screen_candidate_for_position
+employee_router.screen_candidate_for_position = lambda r, p, d: (False, "Candidate lacks 3 years of event supervision experience.")
+
+# Worker tries to add position 12 (Event Captain) without resume
+r = worker_http.post("/employee/profile/positions", data={"position_id": "12"})
+check("Worker without resume blocked from adding position", "must upload a resume" in r.text)
+
+# Worker uploads resume
+resume_data = b"Wes Worker resume content."
+r = worker_http.post("/employee/profile/resume", files={"resume": ("resume.txt", io.BytesIO(resume_data), "text/plain")})
+check("Resume uploaded successfully", "Resume uploaded and processed successfully" in r.text)
+
+# Worker adds position 12, AI screens it and declines it
+r = worker_http.post("/employee/profile/positions", data={"position_id": "12"})
+check("Worker screened and declined by AI position approver", "lacks 3 years of event supervision" in r.text)
+
+# Find the employee_position record id from db
+ep = db_sess.query(models.EmployeePosition).filter_by(user_id=3, position_id=12).first()
+check("Employee position created as declined with reason", ep is not None and ep.status == "declined")
+
+# Admin manually overrides and approves the position
+r = admin_http.post(f"/admin/employee-position/{ep.id}/approve")
+check("Admin manually overrides and approves position", "Manually approved Event Captain for Wes" in r.text)
+
+# Verify database status is updated
+db_sess.refresh(ep)
+check("Employee position status is approved in db", ep.status == "approved")
+
+db_sess.close()
+
+# Restore environment and monkeypatch
+os.environ["DATA_DIR"] = orig_env_data_dir
+employee_router.screen_candidate_for_position = orig_screen
+os.environ["FORCE_PICTURE_CHECK"] = "false"
+
 
 print()
 total, ok = len(passed), sum(passed)
 print(f"{ok}/{total} checks passed")
 shutil.rmtree(tmp, ignore_errors=True)
 raise SystemExit(0 if ok == total else 1)
+
+

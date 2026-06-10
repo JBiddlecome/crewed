@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -55,6 +55,13 @@ def dashboard(
         .limit(8)
         .all()
     )
+    disputed_timesheets = (
+        db.query(models.Timesheet)
+        .filter_by(is_disputed=True)
+        .order_by(models.Timesheet.approved_at.desc())
+        .limit(8)
+        .all()
+    )
     return templates.TemplateResponse(
         request,
         "admin/dashboard.html",
@@ -63,6 +70,7 @@ def dashboard(
             "stats": stats,
             "recent_shifts": recent_shifts,
             "pending_employees": pending_employees,
+            "disputed_timesheets": disputed_timesheets,
         },
     )
 
@@ -353,31 +361,101 @@ def save_settings(
 
 # ---------- Shifts ----------
 
+def group_shifts_by_client(shifts_list, reverse_dates=False):
+    grouped = {}
+    for s in shifts_list:
+        client = s.company
+        if client.id not in grouped:
+            grouped[client.id] = {"client": client, "dates": {}}
+        if s.shift_date not in grouped[client.id]["dates"]:
+            grouped[client.id]["dates"][s.shift_date] = []
+        grouped[client.id]["dates"][s.shift_date].append(s)
+    
+    sorted_grouped = []
+    for cid in sorted(grouped.keys(), key=lambda c_id: grouped[c_id]["client"].name.lower()):
+        c_data = grouped[cid]
+        sorted_dates = []
+        total_count = 0
+        for d in sorted(c_data["dates"].keys(), reverse=reverse_dates):
+            shifts = c_data["dates"][d]
+            total_count += len(shifts)
+            sorted_dates.append({
+                "date": d,
+                "shifts": shifts
+            })
+        sorted_grouped.append({
+            "client": c_data["client"],
+            "dates": sorted_dates,
+            "total_count": total_count
+        })
+    return sorted_grouped
+
+
+def group_shifts_by_location(shifts_list, reverse_dates=False):
+    grouped = {}
+    for s in shifts_list:
+        location = s.location
+        if location.id not in grouped:
+            grouped[location.id] = {"location": location, "dates": {}}
+        if s.shift_date not in grouped[location.id]["dates"]:
+            grouped[location.id]["dates"][s.shift_date] = []
+        grouped[location.id]["dates"][s.shift_date].append(s)
+        
+    sorted_grouped = []
+    for lid in sorted(grouped.keys(), key=lambda l_id: (grouped[l_id]["location"].company.name.lower(), grouped[l_id]["location"].name.lower())):
+        l_data = grouped[lid]
+        sorted_dates = []
+        total_count = 0
+        for d in sorted(l_data["dates"].keys(), reverse=reverse_dates):
+            shifts = l_data["dates"][d]
+            total_count += len(shifts)
+            sorted_dates.append({
+                "date": d,
+                "shifts": shifts
+            })
+        sorted_grouped.append({
+            "location": l_data["location"],
+            "dates": sorted_dates,
+            "total_count": total_count
+        })
+    return sorted_grouped
+
+
 @router.get("/shifts")
 def shifts(
     request: Request,
+    view: str = "client",
     user: models.User = Depends(require("admin")),
     db: Session = Depends(get_db),
 ):
     today = date.today()
-    upcoming = (
+    upcoming_raw = (
         db.query(models.Shift)
         .filter(models.Shift.shift_date >= today)
         .order_by(models.Shift.shift_date, models.Shift.start_time)
         .all()
     )
-    past = (
+    past_raw = (
         db.query(models.Shift)
         .filter(models.Shift.shift_date < today)
         .order_by(models.Shift.shift_date.desc())
         .limit(30)
         .all()
     )
+    
+    if view == "location":
+        upcoming = group_shifts_by_location(upcoming_raw)
+        past = group_shifts_by_location(past_raw, reverse_dates=True)
+    else:
+        upcoming = group_shifts_by_client(upcoming_raw)
+        past = group_shifts_by_client(past_raw, reverse_dates=True)
+        
     return templates.TemplateResponse(
         request,
         "admin/shifts.html",
-        {"user": user, "upcoming": upcoming, "past": past},
+        {"user": user, "upcoming": upcoming, "past": past, "view": view},
     )
+
 
 
 # ---------- Client Crew Lists (Admin) ----------
@@ -516,3 +594,192 @@ def admin_delete_from_blocklist(
         db.commit()
         flash(request, f"Removed {name} from Block List.")
     return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+# ---------- Timesheets ----------
+
+@router.get("/timesheets")
+def admin_timesheets(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(models.Timesheet)
+        .join(models.Assignment)
+        .join(models.Shift)
+        .order_by(models.Timesheet.id.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/timesheets.html",
+        {"user": user, "timesheets": rows},
+    )
+
+
+@router.post("/timesheets/{timesheet_id}/close")
+def admin_close_timesheet(
+    timesheet_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    t = db.get(models.Timesheet, timesheet_id)
+    if not t:
+        flash(request, "Timesheet not found.", "error")
+        return RedirectResponse("/admin/timesheets", status_code=303)
+    t.is_closed = not t.is_closed
+    db.commit()
+    status_str = "closed (locked)" if t.is_closed else "re-opened (unlocked)"
+    flash(request, f"Timesheet for {t.assignment.employee.name} has been {status_str}.")
+    return RedirectResponse("/admin/timesheets", status_code=303)
+
+
+@router.post("/timesheets/{timesheet_id}/edit")
+def admin_edit_timesheet(
+    timesheet_id: int,
+    request: Request,
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    meal_start_time: str = Form(None),
+    meal_end_time: str = Form(None),
+    no_break: bool = Form(False),
+    billing_start_time: str = Form(None),
+    billing_end_time: str = Form(None),
+    billing_meal_start_time: str = Form(None),
+    billing_meal_end_time: str = Form(None),
+    billing_no_break: bool = Form(False),
+    is_disputed: bool = Form(False),
+    dispute_reason: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    t = db.get(models.Timesheet, timesheet_id)
+    if not t:
+        flash(request, "Timesheet not found.", "error")
+        return RedirectResponse("/admin/timesheets", status_code=303)
+        
+    # Update employee side
+    t.start_time = start_time
+    t.end_time = end_time
+    if no_break:
+        t.meal_start_time = None
+        t.meal_end_time = None
+        t.break_minutes = 0
+    else:
+        t.meal_start_time = meal_start_time or None
+        t.meal_end_time = meal_end_time or None
+        if t.meal_start_time and t.meal_end_time:
+            t.break_minutes = models.minutes_between(t.meal_start_time, t.meal_end_time)
+        else:
+            t.break_minutes = 0
+
+    # Update billing side
+    t.billing_start_time = billing_start_time or None
+    t.billing_end_time = billing_end_time or None
+    if billing_no_break:
+        t.billing_meal_start_time = None
+        t.billing_meal_end_time = None
+        t.billing_break_minutes = 0
+    else:
+        t.billing_meal_start_time = billing_meal_start_time or None
+        t.billing_meal_end_time = billing_meal_end_time or None
+        if t.billing_meal_start_time and t.billing_meal_end_time:
+            t.billing_break_minutes = models.minutes_between(t.billing_meal_start_time, t.billing_meal_end_time)
+        else:
+            t.billing_break_minutes = None
+
+    t.is_disputed = is_disputed
+    t.dispute_reason = dispute_reason.strip() or None
+    
+    # If edited, ensure status is approved
+    t.status = "approved"
+    if not t.approved_at:
+        t.approved_at = datetime.utcnow()
+        
+    db.commit()
+    flash(request, f"Timesheet updated successfully.")
+    return RedirectResponse("/admin/timesheets", status_code=303)
+
+
+@router.post("/employees/{employee_id}/approve_photo")
+def admin_approve_photo(
+    employee_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    emp = db.get(models.User, employee_id)
+    if not emp or emp.role != "employee":
+        flash(request, "Employee not found.", "error")
+    else:
+        emp.profile_picture_approved = True
+        db.commit()
+        flash(request, f"Approved profile picture for {emp.name}.")
+    return RedirectResponse("/admin/employees", status_code=303)
+
+
+@router.post("/employees/{employee_id}/reject_photo")
+def admin_reject_photo(
+    employee_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    emp = db.get(models.User, employee_id)
+    if not emp or emp.role != "employee":
+        flash(request, "Employee not found.", "error")
+    else:
+        from ..config import DATA_DIR
+        import os
+        if emp.profile_picture:
+            filepath = DATA_DIR / "uploads" / "profile_pics" / emp.profile_picture
+            if filepath.exists():
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+        emp.profile_picture = None
+        emp.profile_picture_approved = False
+        db.commit()
+        flash(request, f"Rejected and removed profile picture for {emp.name}.")
+    return RedirectResponse("/admin/employees", status_code=303)
+
+
+@router.post("/employee-position/{ep_id}/approve")
+def admin_approve_position(
+    ep_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ep = db.get(models.EmployeePosition, ep_id)
+    if not ep:
+        flash(request, "Employee position record not found.", "error")
+    else:
+        ep.status = "approved"
+        ep.decline_reason = None
+        db.commit()
+        flash(request, f"Manually approved {ep.position.name} for {ep.employee.name}.")
+    return RedirectResponse("/admin/employees", status_code=303)
+
+
+@router.post("/employee-position/{ep_id}/decline")
+def admin_decline_position(
+    ep_id: int,
+    request: Request,
+    decline_reason: str = Form("Manually declined by admin."),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ep = db.get(models.EmployeePosition, ep_id)
+    if not ep:
+        flash(request, "Employee position record not found.", "error")
+    else:
+        ep.status = "declined"
+        ep.decline_reason = decline_reason.strip() or "Manually declined by admin."
+        db.commit()
+        flash(request, f"Manually declined {ep.position.name} for {ep.employee.name}.")
+    return RedirectResponse("/admin/employees", status_code=303)
+

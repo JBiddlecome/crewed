@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -14,6 +15,19 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from .db import Base
+
+
+def minutes_between(start: str, end: str) -> int:
+    """Minutes between two HH:MM strings; spans midnight if end < start."""
+    try:
+        sh, sm = (int(x) for x in start.split(":"))
+        eh, em = (int(x) for x in end.split(":"))
+    except (AttributeError, ValueError, TypeError):
+        return 0
+    mins = (eh * 60 + em) - (sh * 60 + sm)
+    if mins < 0:
+        mins += 24 * 60
+    return mins
 
 
 def hours_between(start: str, end: str, break_minutes: int = 0) -> float:
@@ -64,6 +78,10 @@ class User(Base):
     city = Column(String)
     state = Column(String)
     zip = Column(String)
+    profile_picture = Column(String)
+    profile_picture_approved = Column(Boolean, default=False)
+    resume_file = Column(String)
+    resume_text = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("ClientCompany", back_populates="users")
@@ -158,6 +176,8 @@ class EmployeePosition(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     position_id = Column(Integer, ForeignKey("position.id"), nullable=False)
+    status = Column(String, default="pending")  # pending | approved | declined
+    decline_reason = Column(Text)
 
     employee = relationship("User", back_populates="positions")
     position = relationship("Position")
@@ -244,6 +264,16 @@ class Timesheet(Base):
     start_time = Column(String(5))
     end_time = Column(String(5))
     break_minutes = Column(Integer, default=0)
+    meal_start_time = Column(String(5))
+    meal_end_time = Column(String(5))
+    billing_start_time = Column(String(5))
+    billing_end_time = Column(String(5))
+    billing_break_minutes = Column(Integer)
+    billing_meal_start_time = Column(String(5))
+    billing_meal_end_time = Column(String(5))
+    is_disputed = Column(Boolean, default=False)
+    dispute_reason = Column(Text)
+    is_closed = Column(Boolean, default=False)
     status = Column(String, default="pending")  # pending | submitted | approved
     submitted_at = Column(DateTime)
     approved_at = Column(DateTime)
@@ -251,10 +281,36 @@ class Timesheet(Base):
     assignment = relationship("Assignment", back_populates="timesheet")
 
     @property
-    def hours(self):
+    def employee_break_minutes(self):
+        if self.meal_start_time and self.meal_end_time:
+            return minutes_between(self.meal_start_time, self.meal_end_time)
+        return self.break_minutes or 0
+
+    @property
+    def client_break_minutes(self):
+        if self.billing_meal_start_time and self.billing_meal_end_time:
+            return minutes_between(self.billing_meal_start_time, self.billing_meal_end_time)
+        if self.billing_break_minutes is not None:
+            return self.billing_break_minutes
+        return self.employee_break_minutes
+
+    @property
+    def employee_hours(self):
         if not self.start_time or not self.end_time:
             return 0.0
-        return hours_between(self.start_time, self.end_time, self.break_minutes or 0)
+        return hours_between(self.start_time, self.end_time, self.employee_break_minutes)
+
+    @property
+    def billing_hours(self):
+        start = self.billing_start_time or self.start_time
+        end = self.billing_end_time or self.end_time
+        if not start or not end:
+            return 0.0
+        return hours_between(start, end, self.client_break_minutes)
+
+    @property
+    def hours(self):
+        return self.billing_hours
 
 
 class Message(Base):

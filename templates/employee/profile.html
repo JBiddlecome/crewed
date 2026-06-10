@@ -11,8 +11,17 @@
       {% if user.positions %}
         <div style="margin-bottom:14px">
         {% for ep in user.positions %}
-          <form class="inline-form" method="post" action="/employee/profile/positions/{{ ep.id }}/delete" style="margin:0 6px 6px 0">
-            <span class="chip">{{ ep.position.name }}</span>
+          <form class="inline-form" method="post" action="/employee/profile/positions/{{ ep.id }}/delete" style="margin:0 6px 6px 0; display: inline-flex; align-items: center;">
+            <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}" {% if ep.status == 'declined' and ep.decline_reason %}title="Declined: {{ ep.decline_reason }}"{% endif %}>
+              {{ ep.position.name }}
+              {% if ep.status == 'approved' %}
+                <small style="color:var(--seafoam-deep); margin-left:4px;">✓</small>
+              {% elif ep.status == 'declined' %}
+                <small style="color:var(--coral-dark); margin-left:4px;" title="{{ ep.decline_reason }}">✗</small>
+              {% else %}
+                <small style="color:var(--amber-deep); margin-left:4px;">?</small>
+              {% endif %}
+            </span>
             <button class="btn btn-ghost btn-sm" type="submit" title="Remove">×</button>
           </form>
         {% endfor %}
@@ -75,6 +84,59 @@
   </div>
 
   <div>
+    <div class="card">
+      <h2>Profile Photo &amp; Resume</h2>
+      
+      <!-- Profile Picture Section -->
+      <div style="display:flex; gap:16px; align-items:center; margin-bottom:20px; padding-bottom:20px; border-bottom:1.5px solid var(--line);">
+        <div class="profile-pic-container">
+          {% if user.profile_picture %}
+            <img class="profile-pic-preview" src="/uploads/profile_pics/{{ user.profile_picture }}" alt="Profile Picture">
+          {% else %}
+            <div class="profile-pic-placeholder">No Photo</div>
+          {% endif %}
+        </div>
+        <div style="flex:1">
+          <label style="font-weight:600; font-size:.8rem; text-transform:uppercase; color:var(--plum-ink); display:block; margin-bottom:4px;">Profile Photo</label>
+          <div style="margin-bottom:8px">
+            {% if user.profile_picture %}
+              {% if user.profile_picture_approved %}
+                <span class="badge badge-approved">Approved</span>
+              {% else %}
+                <span class="badge badge-pending">Pending Approval</span>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-cancelled">Missing photo</span>
+            {% endif %}
+          </div>
+          <form method="post" action="/employee/profile/photo" enctype="multipart/form-data">
+            <input type="file" name="photo" accept="image/*" required style="font-size:.8rem; margin-bottom:6px; display:block;">
+            <button class="btn btn-sm" type="submit">Upload Photo</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Resume Section -->
+      <div>
+        <label style="font-weight:600; font-size:.8rem; text-transform:uppercase; color:var(--plum-ink); display:block; margin-bottom:6px;">Resume (PDF or TXT)</label>
+        <div style="margin-bottom:10px">
+          {% if user.resume_file %}
+            <span style="color:var(--seafoam-deep); font-weight:600; font-size:.9rem">✓ Resume uploaded</span>
+            <div style="color:var(--muted); font-size:.8rem; margin-top:2px;">
+              Uploaded file: {{ user.resume_file[:25] }}...
+            </div>
+          {% else %}
+            <span class="badge badge-cancelled">Missing resume</span>
+            <p style="color:var(--muted); font-size:.82rem; margin:4px 0 0 0">Upload a resume to automatically verify positions you add.</p>
+          {% endif %}
+        </div>
+        <form method="post" action="/employee/profile/resume" enctype="multipart/form-data">
+          <input type="file" name="resume" accept=".pdf,.txt" required style="font-size:.8rem; margin-bottom:8px; display:block;">
+          <button class="btn btn-sm btn-soft" type="submit">Upload Resume</button>
+        </form>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Contact info</h2>
       <form method="post" action="/employee/profile/info">

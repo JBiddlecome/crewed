@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Adjust Hours — Crewed{% endblock %}
+{% block heading %}Adjust Hours{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:600px; margin:0 auto">
+  <h2>Adjust Timesheet Hours</h2>
+  <p class="card-note">Modify your timesheet hours for <strong>{{ assignment.shift.position.name }}</strong> at <strong>{{ assignment.shift.company.name }}</strong> on {{ assignment.shift.shift_date|dt }}.</p>
+  
+  <form method="post" action="/employee/timesheets/{{ assignment.id }}/edit">
+    <div class="form-row">
+      <div class="field">
+        <label for="start_time">Shift Start Time</label>
+        <input type="time" name="start_time" id="start_time" value="{{ timesheet.start_time or '' }}" required>
+      </div>
+      <div class="field">
+        <label for="end_time">Shift End Time</label>
+        <input type="time" name="end_time" id="end_time" value="{{ timesheet.end_time or '' }}" required>
+      </div>
+    </div>
+    
+    <div style="background:var(--coral-tint); border:1px solid var(--coral); border-radius:12px; padding:20px; margin:20px 0">
+      <strong style="color:var(--coral-dark); font-size:1rem; display:block; margin-bottom:8px">Meal Break</strong>
+      <p style="font-size:0.85rem; color:var(--muted); margin:0 0 14px">Please enter your meal break times. If you did not take a break, check "No break taken".</p>
+      
+      <div class="form-row">
+        <div class="field">
+          <label for="meal_start_time">Meal In</label>
+          <input type="time" name="meal_start_time" id="meal_start_time" value="{{ timesheet.meal_start_time or '12:00' }}">
+        </div>
+        <div class="field">
+          <label for="meal_end_time">Meal Out</label>
+          <input type="time" name="meal_end_time" id="meal_end_time" value="{{ timesheet.meal_end_time or '12:30' }}">
+        </div>
+      </div>
+      
+      <div style="margin-top:14px">
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer">
+          <input type="checkbox" name="no_break" id="no_break" {% if not timesheet.meal_start_time and not timesheet.meal_end_time %}checked{% endif %} onchange="toggleMealInputs(this)">
+          No break taken
+        </label>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:12px; justify-content:flex-end">
+      <a class="btn btn-ghost" href="/employee/myshifts">Cancel</a>
+      <button class="btn" type="submit">Save Adjustments</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleMealInputs(chk) {
+  var start = document.getElementById('meal_start_time');
+  var end = document.getElementById('meal_end_time');
+  if (chk.checked) {
+    start.disabled = true;
+    end.disabled = true;
+    start.required = false;
+    end.required = false;
+    start.style.opacity = '0.5';
+    end.style.opacity = '0.5';
+  } else {
+    start.disabled = false;
+    end.disabled = false;
+    start.required = true;
+    end.required = true;
+    start.style.opacity = '1';
+    end.style.opacity = '1';
+  }
+}
+document.addEventListener("DOMContentLoaded", function() {
+  toggleMealInputs(document.getElementById('no_break'));
+});
+</script>
+
+{% endblock %}

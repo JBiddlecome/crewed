@@ -59,4 +59,38 @@
   </div>
 </div>
 
+{% if disputed_timesheets %}
+<div class="card" style="margin-top: 20px;">
+  <h2>Disputed Timesheets</h2>
+  <p style="color:var(--muted); font-size:0.9rem; margin-bottom: 12px;">
+    These timesheets were adjusted by the client during approval.
+  </p>
+  <table class="table">
+    <thead><tr><th>Client</th><th>Crew Member</th><th>Shift</th><th>Date</th><th>Employee Claimed</th><th>Billing Approved</th><th>Hours (Pay / Bill)</th></tr></thead>
+    <tbody>
+      {% for t in disputed_timesheets %}
+      {% set s = t.assignment.shift %}
+      <tr>
+        <td class="strong">{{ s.company.name }}</td>
+        <td>{{ t.assignment.employee.name }}</td>
+        <td>{{ s.position.name }} · {{ s.location.name }}</td>
+        <td>{{ s.shift_date|dt }}</td>
+        <td style="color:var(--muted)">{{ t.start_time }}–{{ t.end_time }}{% if t.break_minutes %} ({{ t.break_minutes }}m break){% endif %}</td>
+        <td class="strong">
+          {{ t.billing_start_time }}–{{ t.billing_end_time }}{% if t.billing_break_minutes %} ({{ t.billing_break_minutes }}m break){% endif %}
+          {% if t.dispute_reason %}
+            <div style="font-size:0.75rem; color:var(--muted); font-weight:normal; margin-top:2px">Reason: {{ t.dispute_reason }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <div style="font-size:0.85rem">Pay: <strong>{{ '%.2f' % t.employee_hours }} hrs</strong></div>
+          <div style="font-size:0.85rem; color:var(--coral-dark)">Bill: <strong>{{ '%.2f' % t.billing_hours }} hrs</strong></div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% endblock %}

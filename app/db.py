@@ -28,6 +28,28 @@ Base = declarative_base()
 _ADDED_COLUMNS = {
     "location": {"parking": "TEXT", "check_in_location": "TEXT", "check_in_contact": "TEXT"},
     "shift": {"parking": "TEXT", "check_in_location": "TEXT", "check_in_contact": "TEXT"},
+    "timesheet": {
+        "billing_start_time": "VARCHAR(5)",
+        "billing_end_time": "VARCHAR(5)",
+        "billing_break_minutes": "INTEGER",
+        "is_disputed": "BOOLEAN DEFAULT 0",
+        "dispute_reason": "TEXT",
+        "meal_start_time": "VARCHAR(5)",
+        "meal_end_time": "VARCHAR(5)",
+        "billing_meal_start_time": "VARCHAR(5)",
+        "billing_meal_end_time": "VARCHAR(5)",
+        "is_closed": "BOOLEAN DEFAULT 0"
+    },
+    "user": {
+        "profile_picture": "TEXT",
+        "profile_picture_approved": "BOOLEAN DEFAULT 0",
+        "resume_file": "TEXT",
+        "resume_text": "TEXT"
+    },
+    "employee_position": {
+        "status": "VARCHAR(20) DEFAULT 'pending'",
+        "decline_reason": "TEXT"
+    },
 }
 
 
