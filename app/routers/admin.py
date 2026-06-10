@@ -89,6 +89,125 @@ def clients(
     )
 
 
+@router.get("/clients/new")
+def new_client_form(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+):
+    return templates.TemplateResponse(
+        request, "admin/client_form.html", {"user": user, "company": None}
+    )
+
+
+@router.post("/clients/new")
+def create_client(
+    request: Request,
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    address1: str = Form(""),
+    address2: str = Form(""),
+    city: str = Form(""),
+    state: str = Form(""),
+    zip: str = Form(""),
+    industry: str = Form(""),
+    status: str = Form("active"),
+    notes: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    name = name.strip()
+    if not name:
+        flash(request, "Company name is required.", "error")
+        return RedirectResponse("/admin/clients/new", status_code=303)
+    if db.query(models.ClientCompany).filter_by(name=name).first():
+        flash(request, f"A client named '{name}' already exists.", "error")
+        return RedirectResponse("/admin/clients/new", status_code=303)
+    company = models.ClientCompany(
+        name=name,
+        phone=phone.strip() or None,
+        email=email.strip() or None,
+        address1=address1.strip() or None,
+        address2=address2.strip() or None,
+        city=city.strip() or None,
+        state=state.strip() or None,
+        zip=zip.strip() or None,
+        industry=industry.strip() or None,
+        status=status,
+        notes=notes.strip() or None,
+    )
+    db.add(company)
+    db.commit()
+    flash(request, f"Client '{name}' created successfully.")
+    return RedirectResponse(f"/admin/clients/{company.id}", status_code=303)
+
+
+@router.get("/clients/{client_id}/edit")
+def edit_client_form(
+    client_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    return templates.TemplateResponse(
+        request, "admin/client_form.html", {"user": user, "company": company}
+    )
+
+
+@router.post("/clients/{client_id}/edit")
+def edit_client(
+    client_id: int,
+    request: Request,
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    address1: str = Form(""),
+    address2: str = Form(""),
+    city: str = Form(""),
+    state: str = Form(""),
+    zip: str = Form(""),
+    industry: str = Form(""),
+    status: str = Form("active"),
+    notes: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    name = name.strip()
+    if not name:
+        flash(request, "Company name is required.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}/edit", status_code=303)
+    # Check name uniqueness (excluding self)
+    conflict = db.query(models.ClientCompany).filter(
+        models.ClientCompany.name == name,
+        models.ClientCompany.id != client_id,
+    ).first()
+    if conflict:
+        flash(request, f"Another client is already named '{name}'.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}/edit", status_code=303)
+    company.name = name
+    company.phone = phone.strip() or None
+    company.email = email.strip() or None
+    company.address1 = address1.strip() or None
+    company.address2 = address2.strip() or None
+    company.city = city.strip() or None
+    company.state = state.strip() or None
+    company.zip = zip.strip() or None
+    company.industry = industry.strip() or None
+    company.status = status
+    company.notes = notes.strip() or None
+    db.commit()
+    flash(request, f"'{company.name}' updated.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
 @router.get("/clients/{client_id}")
 def client_detail(
     client_id: int,

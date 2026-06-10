@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Onboarding — Crewed{% endblock %}
+{% block heading %}Onboarding{% endblock %}
+{% block subheading %}<p class="subheading">Complete your onboarding documents to get started</p>{% endblock %}
+
+{% block content %}
+<style>
+.onboard-progress-header { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:24px 28px; margin-bottom:24px; display:flex; align-items:center; gap:20px; }
+.prog-circle { position:relative; width:72px; height:72px; flex-shrink:0; }
+.prog-circle svg { transform:rotate(-90deg); }
+.prog-circle-text { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:800; color:var(--accent); }
+.prog-circle-text.done { color:#22c55e; }
+.onboard-progress-info h2 { font-size:1.1rem; font-weight:700; margin:0 0 4px; }
+.onboard-progress-info p { font-size:.84rem; color:var(--text-muted); margin:0; }
+.done-banner { background:linear-gradient(135deg,#d1fae5,#a7f3d0); border:1.5px solid #6ee7b7; border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:12px; color:#065f46; font-weight:600; margin-bottom:20px; }
+.done-banner svg { flex-shrink:0; }
+
+.doc-list { display:flex; flex-direction:column; gap:12px; }
+.doc-card { background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:18px 20px; display:flex; align-items:center; gap:16px; text-decoration:none; transition:all .18s; }
+.doc-card:hover { box-shadow:0 6px 24px rgba(0,0,0,.08); border-color:var(--accent); transform:translateY(-1px); }
+.doc-card.complete { border-color:#6ee7b7; }
+.doc-card.complete:hover { border-color:#22c55e; }
+.doc-icon { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.doc-icon.not_started { background:var(--surface-alt); color:var(--text-muted); }
+.doc-icon.in_progress { background:#fef3c7; color:#92400e; }
+.doc-icon.complete { background:#d1fae5; color:#059669; }
+.doc-icon.pdf { background:#fee2e2; color:#dc2626; }
+.doc-icon.w4 { background:#dbeafe; color:#2563eb; }
+.doc-icon.i9 { background:#ede9fe; color:#7c3aed; }
+.doc-info { flex:1; min-width:0; }
+.doc-name { font-weight:700; font-size:.95rem; color:var(--text); }
+.doc-meta { font-size:.78rem; color:var(--text-muted); margin-top:2px; }
+.doc-status { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.doc-status-badge { padding:4px 12px; border-radius:12px; font-size:.75rem; font-weight:700; }
+.doc-status-badge.not_started { background:var(--surface-alt); color:var(--text-muted); }
+.doc-status-badge.in_progress { background:#fef3c7; color:#92400e; }
+.doc-status-badge.complete { background:#d1fae5; color:#065f46; }
+.doc-arrow { font-size:1.2rem; color:var(--text-muted); }
+.doc-card.complete .doc-arrow { color:#22c55e; }
+
+.pending-notice { background:#fef3c7; border:1.5px solid #f59e0b; border-radius:14px; padding:16px 20px; margin-bottom:20px; font-size:.88rem; color:#78350f; display:flex; align-items:center; gap:10px; }
+.pending-notice svg { flex-shrink:0; }
+</style>
+
+<!-- Progress Header -->
+<div class="onboard-progress-header">
+  {% set radius = 28 %}
+  {% set circ = 2 * 3.14159 * radius %}
+  {% set offset = circ * (1 - (complete / total if total > 0 else 1)) %}
+  <div class="prog-circle">
+    <svg width="72" height="72" viewBox="0 0 72 72">
+      <circle cx="36" cy="36" r="{{ radius }}" stroke="var(--border)" stroke-width="6" fill="none"/>
+      <circle cx="36" cy="36" r="{{ radius }}" stroke="{{ '#22c55e' if all_done else 'var(--accent)' }}" stroke-width="6" fill="none"
+        stroke-dasharray="{{ circ }}"
+        stroke-dashoffset="{{ offset }}"
+        stroke-linecap="round"/>
+    </svg>
+    <div class="prog-circle-text {{ 'done' if all_done }}">
+      {% if all_done %}✓{% else %}{{ (complete / total * 100)|int if total > 0 else 100 }}%{% endif %}
+    </div>
+  </div>
+  <div class="onboard-progress-info">
+    {% if all_done %}
+      <h2>Onboarding Complete! 🎉</h2>
+      <p>You've finished all required documents. Your account is pending admin approval.</p>
+    {% elif total == 0 %}
+      <h2>No Documents Required</h2>
+      <p>Your onboarding package hasn't been configured yet.</p>
+    {% else %}
+      <h2>{{ complete }} of {{ total }} Documents Complete</h2>
+      <p>Complete all required documents to be activated in the system.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if user.status == 'pending' and not all_done %}
+<div class="pending-notice">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Your account is pending. Complete your onboarding documents to be activated.
+</div>
+{% endif %}
+
+{% if all_done and total > 0 %}
+<div class="done-banner">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="24" height="24"><polyline points="20 6 9 17 4 12"/></svg>
+  All done! Your administrator will review and activate your account.
+</div>
+{% endif %}
+
+<!-- Document List -->
+{% if package %}
+<div class="doc-list">
+  {% for item in package %}
+  {% set rec = records.get(item.document_id) %}
+  {% set status = rec.status if rec else 'not_started' %}
+  {% set doc = item.document %}
+  {% if doc.doc_type == 'w4_wizard' %}
+    {% set href = '/employee/onboarding/wizard/w4' %}
+    {% set icon_class = 'w4' %}
+    {% set type_label = 'W-4 Tax Withholding Wizard' %}
+  {% elif doc.doc_type == 'i9_wizard' %}
+    {% set href = '/employee/onboarding/wizard/i9' %}
+    {% set icon_class = 'i9' %}
+    {% set type_label = 'I-9 Employment Eligibility Wizard' %}
+  {% else %}
+    {% set href = '/employee/onboarding/' ~ doc.id %}
+    {% set icon_class = 'pdf' %}
+    {% set type_label = 'PDF Document · ' ~ (doc.fields|length|string) ~ ' field' ~ ('s' if doc.fields|length != 1 else '') %}
+  {% endif %}
+  <a href="{{ href }}" class="doc-card {{ status }}">
+    <div class="doc-icon {{ icon_class }}">
+      {% if doc.doc_type == 'w4_wizard' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      {% elif doc.doc_type == 'i9_wizard' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      {% endif %}
+    </div>
+    <div class="doc-info">
+      <div class="doc-name">{{ doc.name }}</div>
+      <div class="doc-meta">{{ type_label }}{% if not item.required %} · Optional{% endif %}{% if doc.requires_signature %} · Requires signature{% endif %}</div>
+      {% if rec and rec.completed_at %}
+        <div class="doc-meta" style="color:#059669;">Completed {{ rec.completed_at.strftime('%b %d, %Y') }}</div>
+      {% endif %}
+    </div>
+    <div class="doc-status">
+      <span class="doc-status-badge {{ status }}">{{ {'complete':'Complete','in_progress':'In Progress','not_started':'Not Started'}.get(status, status) }}</span>
+    </div>
+    <div class="doc-arrow">{% if status == 'complete' %}✓{% else %}›{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center; padding:48px; color:var(--text-muted);">
+  <p>No onboarding documents have been configured yet.</p>
+</div>
+{% endif %}
+{% endblock %}

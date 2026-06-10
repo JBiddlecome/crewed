@@ -34,3 +34,15 @@ def dt(value):
 templates.env.globals["get_flashed"] = get_flashed
 templates.env.filters["money"] = money
 templates.env.filters["dt"] = dt
+
+import json as _json
+
+
+def _from_json(value):
+    try:
+        return _json.loads(value)
+    except Exception:
+        return {}
+
+
+templates.env.filters["from_json"] = _from_json

@@ -1,8 +1,54 @@
 {% extends "base.html" %}
 {% block title %}{{ company.name }} — Crewed{% endblock %}
 {% block heading %}{{ company.name }}{% endblock %}
-{% block subheading %}<div class="sub">Client since {{ company.created_at|dt }}{% if company.phone %} · {{ company.phone }}{% endif %}</div>{% endblock %}
+{% block subheading %}
+  <div class="sub">
+    Client since {{ company.created_at|dt }}
+    {% if company.status == 'active' %}
+      <span class="badge badge-open" style="margin-left:8px">Active</span>
+    {% elif company.status == 'prospect' %}
+      <span class="badge" style="margin-left:8px;background:var(--amber-tint,#fff3cd);color:var(--amber-deep,#856404)">Prospect</span>
+    {% elif company.status == 'inactive' %}
+      <span class="badge badge-cancelled" style="margin-left:8px">Inactive</span>
+    {% elif company.status == 'terminated' %}
+      <span class="badge" style="margin-left:8px;background:#f8d7da;color:#842029">Terminated</span>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block actions %}
+  <a class="btn btn-ghost" href="/admin/clients/{{ company.id }}/edit">✎ Edit Profile</a>
+{% endblock %}
 {% block content %}
+
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Contact</div>
+      {% if company.phone %}<div style="margin-bottom:4px">📞 {{ company.phone }}</div>{% endif %}
+      {% if company.email %}<div style="margin-bottom:4px">✉ {{ company.email }}</div>{% endif %}
+      {% if not company.phone and not company.email %}<div style="color:var(--muted)">—</div>{% endif %}
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Address</div>
+      {% if company.address1 %}
+        <div>{{ company.address1 }}{% if company.address2 %}, {{ company.address2 }}{% endif %}</div>
+        <div>{{ [company.city, company.state, company.zip]|select|join(', ') }}</div>
+      {% else %}
+        <div style="color:var(--muted)">No address on file</div>
+      {% endif %}
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Industry</div>
+      <div>{{ company.industry or '—' }}</div>
+    </div>
+    {% if company.notes %}
+    <div style="flex:2;min-width:240px">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Notes</div>
+      <div style="color:var(--muted);font-size:.9rem;white-space:pre-wrap">{{ company.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
 
 <div class="grid grid-2">
   <div class="card">

@@ -50,6 +50,9 @@ _ADDED_COLUMNS = {
         "status": "VARCHAR(20) DEFAULT 'pending'",
         "decline_reason": "TEXT"
     },
+    # onboarding_document, onboarding_field, onboarding_package_item,
+    # employee_onboarding, employee_onboarding_field_value are new tables
+    # created via create_all(); no ALTER TABLE entries needed here.
 }
 
 

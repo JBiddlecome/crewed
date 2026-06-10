@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% if company %}
+  {% block title %}Edit {{ company.name }} — Crewed{% endblock %}
+  {% block heading %}Edit Client{% endblock %}
+  {% block subheading %}<div class="sub">{{ company.name }}</div>{% endblock %}
+{% else %}
+  {% block title %}New Client — Crewed{% endblock %}
+  {% block heading %}New Client{% endblock %}
+{% endif %}
+
+{% block actions %}
+  {% if company %}
+    <a class="btn btn-ghost" href="/admin/clients/{{ company.id }}">Cancel</a>
+  {% else %}
+    <a class="btn btn-ghost" href="/admin/clients">Cancel</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<form method="post"
+      action="{% if company %}/admin/clients/{{ company.id }}/edit{% else %}/admin/clients/new{% endif %}"
+      class="form-card">
+
+  <div class="form-section">
+    <h2 class="form-section-title">Company Identity</h2>
+
+    <div class="grid grid-2">
+      <div class="field field-required">
+        <label for="name">Company Name</label>
+        <input id="name" name="name" type="text" required
+               value="{{ company.name if company else '' }}"
+               placeholder="e.g. Grand Hyatt Los Angeles">
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% set cur = company.status if company else 'active' %}
+          <option value="active"    {% if cur == 'active'    %}selected{% endif %}>Active</option>
+          <option value="prospect"  {% if cur == 'prospect'  %}selected{% endif %}>Prospect</option>
+          <option value="inactive"  {% if cur == 'inactive'  %}selected{% endif %}>Inactive</option>
+          <option value="terminated"{% if cur == 'terminated'%}selected{% endif %}>Terminated</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="field">
+        <label for="industry">Industry</label>
+        <select id="industry" name="industry">
+          {% set cur_ind = company.industry if company else '' %}
+          <option value="">— Select industry —</option>
+          {% for opt in [
+            "Hotel/Resort", "Private Club", "Entertainment Studio", "Stadium",
+            "Convention Center", "Corporate Dining", "Catering Company",
+            "School/University", "Hospital/Healthcare", "Senior Assisted Living",
+            "Rehabilitation Center", "Restaurant", "Casino", "Private Event",
+            "Production", "Candidate Referral Partner", "Other"
+          ] %}
+            <option value="{{ opt }}" {% if cur_ind == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" type="tel"
+               value="{{ company.phone or '' if company else '' }}"
+               placeholder="(213) 555-0100">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="email">Primary Email</label>
+      <input id="email" name="email" type="email"
+             value="{{ company.email or '' if company else '' }}"
+             placeholder="billing@example.com">
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2 class="form-section-title">Address</h2>
+
+    <div class="field">
+      <label for="address1">Address Line 1</label>
+      <input id="address1" name="address1" type="text"
+             value="{{ company.address1 or '' if company else '' }}"
+             placeholder="123 Main St">
+    </div>
+    <div class="field">
+      <label for="address2">Address Line 2 <span class="optional">(optional)</span></label>
+      <input id="address2" name="address2" type="text"
+             value="{{ company.address2 or '' if company else '' }}"
+             placeholder="Suite 400">
+    </div>
+
+    <div class="grid grid-3">
+      <div class="field">
+        <label for="city">City</label>
+        <input id="city" name="city" type="text"
+               value="{{ company.city or '' if company else '' }}"
+               placeholder="Los Angeles">
+      </div>
+      <div class="field">
+        <label for="state">State</label>
+        <select id="state" name="state">
+          <option value="">—</option>
+          {% set cur_st = company.state or '' if company else '' %}
+          {% for code, label in [
+            ('AL','Alabama'),('AK','Alaska'),('AZ','Arizona'),('AR','Arkansas'),
+            ('CA','California'),('CO','Colorado'),('CT','Connecticut'),('DE','Delaware'),
+            ('FL','Florida'),('GA','Georgia'),('HI','Hawaii'),('ID','Idaho'),
+            ('IL','Illinois'),('IN','Indiana'),('IA','Iowa'),('KS','Kansas'),
+            ('KY','Kentucky'),('LA','Louisiana'),('ME','Maine'),('MD','Maryland'),
+            ('MA','Massachusetts'),('MI','Michigan'),('MN','Minnesota'),('MS','Mississippi'),
+            ('MO','Missouri'),('MT','Montana'),('NE','Nebraska'),('NV','Nevada'),
+            ('NH','New Hampshire'),('NJ','New Jersey'),('NM','New Mexico'),('NY','New York'),
+            ('NC','North Carolina'),('ND','North Dakota'),('OH','Ohio'),('OK','Oklahoma'),
+            ('OR','Oregon'),('PA','Pennsylvania'),('RI','Rhode Island'),('SC','South Carolina'),
+            ('SD','South Dakota'),('TN','Tennessee'),('TX','Texas'),('UT','Utah'),
+            ('VT','Vermont'),('VA','Virginia'),('WA','Washington'),('WV','West Virginia'),
+            ('WI','Wisconsin'),('WY','Wyoming')
+          ] %}
+            <option value="{{ code }}" {% if cur_st == code %}selected{% endif %}>{{ code }} — {{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="zip">ZIP Code</label>
+        <input id="zip" name="zip" type="text"
+               value="{{ company.zip or '' if company else '' }}"
+               placeholder="90001">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2 class="form-section-title">Internal Notes</h2>
+    <div class="field">
+      <label for="notes">Notes <span class="optional">(admin-only)</span></label>
+      <textarea id="notes" name="notes" rows="4"
+                placeholder="Sales notes, billing quirks, special instructions…">{{ company.notes or '' if company else '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">
+      {% if company %}Save Changes{% else %}Create Client{% endif %}
+    </button>
+    {% if company %}
+      <a class="btn btn-ghost" href="/admin/clients/{{ company.id }}">Cancel</a>
+    {% else %}
+      <a class="btn btn-ghost" href="/admin/clients">Cancel</a>
+    {% endif %}
+  </div>
+
+</form>
+
+<style>
+  .form-card {
+    max-width: 860px;
+  }
+  .form-section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 28px 20px;
+    margin-bottom: 20px;
+  }
+  .form-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 16px;
+  }
+  .field .optional {
+    font-weight: 400;
+    color: var(--muted);
+    text-transform: none;
+    font-size: 0.8em;
+  }
+  .field-required label::after {
+    content: " *";
+    color: var(--coral-dark, #c0392b);
+  }
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding-top: 4px;
+  }
+</style>
+
+{% endblock %}

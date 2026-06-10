@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.name }} — Onboarding — Crewed{% endblock %}
+{% block heading %}{{ employee.name }}{% endblock %}
+{% block subheading %}<p class="subheading">Onboarding progress · {{ employee.email }}</p>{% endblock %}
+{% block actions %}
+  <div class="btn-group">
+    <a href="/admin/recruiting" class="btn btn-outline">← Recruiting</a>
+    {% if employee.status != 'active' and progress.pct == 100 %}
+      <form method="post" action="/admin/recruiting/{{ employee.id }}/activate" style="margin:0;">
+        <button type="submit" class="btn">Activate Employee</button>
+      </form>
+    {% elif employee.status == 'active' %}
+      <span class="btn btn-outline" style="opacity:.6; cursor:default;">Active ✓</span>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+<style>
+.onboard-header { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:20px; background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:20px 24px; margin-bottom:24px; }
+.onboard-avatar { width:56px; height:56px; border-radius:50%; object-fit:cover; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:700; color:var(--accent); }
+.onboard-meta h2 { font-size:1.1rem; font-weight:700; margin:0 0 2px; }
+.onboard-meta p { font-size:.82rem; color:var(--text-muted); margin:0; }
+.prog-big-wrap { text-align:right; }
+.prog-big-bar { height:10px; background:var(--border); border-radius:6px; width:180px; overflow:hidden; margin-bottom:4px; }
+.prog-big-fill { height:100%; border-radius:6px; background:var(--accent); }
+.prog-big-fill.done { background:#22c55e; }
+.prog-big-label { font-size:.8rem; font-weight:700; color:var(--text-muted); }
+
+.doc-section { margin-bottom:30px; }
+.doc-section-title { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin-bottom:10px; }
+.onboard-doc-card { background:var(--surface); border:1.5px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:12px; }
+.onboard-doc-header { display:flex; align-items:center; gap:14px; padding:16px 18px; cursor:pointer; }
+.onboard-doc-header:hover { background:var(--surface-alt); }
+.doc-status-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+.doc-status-dot.complete { background:#22c55e; }
+.doc-status-dot.in_progress { background:#f59e0b; }
+.doc-status-dot.not_started { background:#d1d5db; }
+.doc-header-info { flex:1; }
+.doc-header-name { font-weight:700; font-size:.92rem; }
+.doc-header-meta { font-size:.75rem; color:var(--text-muted); }
+.doc-status-badge { padding:3px 10px; border-radius:10px; font-size:.72rem; font-weight:700; }
+.doc-status-badge.complete { background:#d1fae5; color:#065f46; }
+.doc-status-badge.in_progress { background:#fef3c7; color:#92400e; }
+.doc-status-badge.not_started { background:var(--surface-alt); color:var(--text-muted); }
+.chevron { font-size:.8rem; color:var(--text-muted); transition:transform .2s; }
+.chevron.open { transform:rotate(90deg); }
+
+.field-values-body { border-top:1px solid var(--border); padding:16px 18px; display:none; }
+.field-values-body.open { display:block; }
+.fv-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.fv-item { background:var(--surface-alt); border-radius:10px; padding:10px 12px; }
+.fv-label { font-size:.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.fv-value { font-size:.88rem; color:var(--text); word-break:break-word; }
+.fv-value.empty { color:var(--text-muted); font-style:italic; }
+.wizard-data-wrap { background:var(--surface-alt); border-radius:10px; padding:14px; }
+.wizard-kv { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); font-size:.82rem; }
+.wizard-kv:last-child { border-bottom:none; }
+.wizard-k { font-weight:600; color:var(--text-muted); min-width:160px; flex-shrink:0; }
+.wizard-v { color:var(--text); }
+</style>
+
+<!-- Employee Header -->
+<div class="onboard-header">
+  {% if employee.profile_picture %}
+    <img class="onboard-avatar" src="/uploads/profile_pics/{{ employee.profile_picture }}" alt="">
+  {% else %}
+    <div class="onboard-avatar">{{ employee.first_name[0] }}{{ employee.last_name[0] }}</div>
+  {% endif %}
+  <div class="onboard-meta">
+    <h2>{{ employee.name }}</h2>
+    <p>{{ employee.email }} · Joined {{ employee.created_at.strftime('%b %d, %Y') }}</p>
+    <p>Status: <strong>{{ employee.status|title }}</strong></p>
+  </div>
+  <div class="prog-big-wrap">
+    <div class="prog-big-bar">
+      <div class="prog-big-fill {{ 'done' if progress.pct == 100 }}" style="width:{{ progress.pct }}%"></div>
+    </div>
+    <div class="prog-big-label">{{ progress.complete }}/{{ progress.total }} complete</div>
+  </div>
+</div>
+
+<!-- Documents -->
+{% if package %}
+<div class="doc-section">
+  <div class="doc-section-title">Onboarding Documents</div>
+  {% for item in package %}
+  {% set rec = records.get(item.document_id) %}
+  {% set status = rec.status if rec else 'not_started' %}
+  <div class="onboard-doc-card">
+    <div class="onboard-doc-header" onclick="toggleDoc({{ item.id }}, this)">
+      <div class="doc-status-dot {{ status }}"></div>
+      <div class="doc-header-info">
+        <div class="doc-header-name">{{ item.document.name }}</div>
+        <div class="doc-header-meta">{{ {'pdf':'PDF','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard'}.get(item.document.doc_type, item.document.doc_type) }}{% if item.required %} · Required{% endif %}{% if rec and rec.completed_at %} · Completed {{ rec.completed_at.strftime('%b %d, %Y') }}{% endif %}</div>
+      </div>
+      <span class="doc-status-badge {{ status }}">{{ {'complete':'Complete','in_progress':'In Progress','not_started':'Not Started'}.get(status, status) }}</span>
+      <span class="chevron">›</span>
+    </div>
+    <div class="field-values-body" id="doc-body-{{ item.id }}">
+      {% if item.document.doc_type == 'pdf' %}
+        {% if rec and rec.field_values %}
+          <div class="fv-grid">
+            {% for fv in rec.field_values %}
+            <div class="fv-item">
+              <div class="fv-label">{{ fv.field.label }}</div>
+              <div class="fv-value {% if not fv.value %}empty{% endif %}">{{ fv.value or '(empty)' }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        {% elif rec and rec.status == 'not_started' %}
+          <p style="color:var(--text-muted); font-size:.85rem; margin:0;">Employee hasn't started this document yet.</p>
+        {% else %}
+          <p style="color:var(--text-muted); font-size:.85rem; margin:0;">No field values recorded.</p>
+        {% endif %}
+      {% elif item.document.doc_type in ('w4_wizard', 'i9_wizard') %}
+        {% if rec and rec.wizard_data %}
+          <div class="wizard-data-wrap">
+            {% set wdata = rec.wizard_data | from_json %}
+            {% for k, v in wdata.items() %}
+            <div class="wizard-kv">
+              <div class="wizard-k">{{ k.replace('_',' ')|title }}</div>
+              <div class="wizard-v">{{ v or '—' }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p style="color:var(--text-muted); font-size:.85rem; margin:0;">Wizard not yet completed.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center; padding:40px; color:var(--text-muted);">No onboarding package configured yet.</div>
+{% endif %}
+
+<script>
+function toggleDoc(id, header) {
+  const body = document.getElementById('doc-body-' + id);
+  const chev = header.querySelector('.chevron');
+  const open = body.classList.toggle('open');
+  chev.classList.toggle('open', open);
+}
+</script>
+{% endblock %}

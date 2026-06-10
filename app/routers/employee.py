@@ -824,3 +824,9 @@ def edit_timesheet(
     db.commit()
     flash(request, f"Timesheet updated — {t.employee_hours:.2f} hours. Sent to client for approval.")
     return RedirectResponse("/employee/myshifts", status_code=303)
+
+
+# Register onboarding routes (kept in separate module for clarity)
+from .employee_onboarding import register_onboarding_routes
+register_onboarding_routes(router)
+

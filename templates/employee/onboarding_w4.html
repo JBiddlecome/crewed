@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}W-4 Tax Withholding — Onboarding — Crewed{% endblock %}
+{% block heading %}W-4 Employee's Withholding Certificate{% endblock %}
+{% block subheading %}<p class="subheading">Complete your federal tax withholding information</p>{% endblock %}
+{% block actions %}
+  <a href="/employee/onboarding" class="btn btn-outline">← Back to Onboarding</a>
+{% endblock %}
+
+{% block content %}
+<style>
+.wizard-layout { max-width:780px; margin:0 auto; }
+.wizard-steps { display:flex; gap:0; margin-bottom:28px; border-radius:12px; overflow:hidden; border:1.5px solid var(--border); }
+.wizard-step { flex:1; padding:12px 8px; text-align:center; font-size:.78rem; font-weight:700; color:var(--text-muted); background:var(--surface); border-right:1px solid var(--border); cursor:pointer; transition:all .15s; }
+.wizard-step:last-child { border-right:none; }
+.wizard-step.active { background:var(--accent); color:#fff; }
+.wizard-step.done { background:var(--accent-soft); color:var(--accent); }
+.wizard-step-num { display:block; font-size:1rem; font-weight:800; margin-bottom:2px; }
+
+.wizard-section { display:none; }
+.wizard-section.active { display:block; }
+
+.form-card { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:24px 28px; margin-bottom:18px; }
+.form-card h3 { font-size:.95rem; font-weight:700; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+.form-card .section-label { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); margin-bottom:4px; }
+.form-card .hint { font-size:.78rem; color:var(--text-muted); margin:0 0 16px; line-height:1.5; background:var(--surface-alt); padding:10px 12px; border-radius:8px; border-left:3px solid var(--accent); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-grid .full { grid-column:1/-1; }
+
+.filing-opts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+.filing-opt input { display:none; }
+.filing-opt .opt { border:2px solid var(--border); border-radius:10px; padding:12px; text-align:center; cursor:pointer; transition:all .15s; }
+.filing-opt input:checked + .opt { border-color:var(--accent); background:var(--accent-soft); }
+.filing-opt .opt-title { font-weight:700; font-size:.88rem; color:var(--text); }
+.filing-opt .opt-sub { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
+.filing-opt input:checked + .opt .opt-title { color:var(--accent); }
+
+.sig-input { font-family:'Dancing Script', cursive, serif; font-size:1.4rem; font-weight:700; color:#1a1a2e; letter-spacing:.02em; }
+.sig-line { border-top:2px solid #333; margin-top:4px; padding-top:4px; }
+
+.wizard-nav { display:flex; justify-content:space-between; gap:12px; margin-top:20px; }
+.already-done { background:#d1fae5; border:1.5px solid #6ee7b7; border-radius:12px; padding:16px 20px; font-size:.88rem; color:#065f46; font-weight:600; margin-bottom:20px; }
+
+.irs-note { background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:10px; padding:12px 14px; font-size:.78rem; color:#1e40af; line-height:1.5; margin-bottom:16px; }
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+
+<div class="wizard-layout">
+
+{% if rec and rec.status == 'complete' %}
+<div class="already-done">
+  ✓ You've already completed your W-4. <a href="/employee/onboarding" style="color:var(--accent);">Back to onboarding</a>
+</div>
+{% endif %}
+
+<div class="irs-note">
+  <strong>IRS W-4 (2024)</strong> — Employee's Withholding Certificate. Complete this form so your employer can withhold the correct federal income tax from your pay. The information you provide is confidential and used only for payroll tax withholding purposes.
+</div>
+
+<!-- Step Indicators -->
+<div class="wizard-steps">
+  <div class="wizard-step active" id="step-tab-1" onclick="goStep(1)"><span class="wizard-step-num">1</span>Personal Info</div>
+  <div class="wizard-step" id="step-tab-2" onclick="goStep(2)"><span class="wizard-step-num">2</span>Multiple Jobs</div>
+  <div class="wizard-step" id="step-tab-3" onclick="goStep(3)"><span class="wizard-step-num">3</span>Dependents</div>
+  <div class="wizard-step" id="step-tab-4" onclick="goStep(4)"><span class="wizard-step-num">4</span>Other Income</div>
+  <div class="wizard-step" id="step-tab-5" onclick="goStep(5)"><span class="wizard-step-num">5</span>Sign & Submit</div>
+</div>
+
+<form method="post" action="/employee/onboarding/wizard/w4" id="w4-form">
+
+<!-- Step 1: Personal Info -->
+<div class="wizard-section active" id="step-1">
+  <div class="form-card">
+    <div class="section-label">Step 1</div>
+    <h3>Personal Information & Filing Status</h3>
+    <div class="hint">Enter your legal name exactly as it appears on your Social Security card.</div>
+    <div class="form-grid">
+      <div>
+        <label class="label">First Name *</label>
+        <input class="input" name="first_name" type="text" placeholder="Jane" value="{{ data.get('first_name','') }}" required>
+      </div>
+      <div>
+        <label class="label">Last Name *</label>
+        <input class="input" name="last_name" type="text" placeholder="Doe" value="{{ data.get('last_name','') }}" required>
+      </div>
+      <div>
+        <label class="label">Address</label>
+        <input class="input" name="address" type="text" placeholder="123 Main St" value="{{ data.get('address','') }}">
+      </div>
+      <div>
+        <label class="label">City, State, ZIP</label>
+        <input class="input" name="city_state_zip" type="text" placeholder="Los Angeles, CA 90001" value="{{ data.get('city_state_zip','') }}">
+      </div>
+      <div>
+        <label class="label">Last 4 digits of SSN</label>
+        <input class="input" name="ssn_last4" type="text" maxlength="4" placeholder="XXXX" value="{{ data.get('ssn_last4','') }}" pattern="\d{4}">
+      </div>
+    </div>
+    <div style="margin-top:18px;">
+      <label class="label">Filing Status *</label>
+      <div class="filing-opts">
+        <label class="filing-opt">
+          <input type="radio" name="filing_status" value="Single" {{ 'checked' if data.get('filing_status') == 'Single' }} required>
+          <div class="opt"><div class="opt-title">Single</div><div class="opt-sub">or Married filing separately</div></div>
+        </label>
+        <label class="filing-opt">
+          <input type="radio" name="filing_status" value="Married" {{ 'checked' if data.get('filing_status') == 'Married' }}>
+          <div class="opt"><div class="opt-title">Married</div><div class="opt-sub">filing jointly</div></div>
+        </label>
+        <label class="filing-opt">
+          <input type="radio" name="filing_status" value="Head of Household" {{ 'checked' if data.get('filing_status') == 'Head of Household' }}>
+          <div class="opt"><div class="opt-title">Head of Household</div><div class="opt-sub">Unmarried, pays >50% home costs</div></div>
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <span></span>
+    <button type="button" class="btn" onclick="goStep(2)">Next → Multiple Jobs</button>
+  </div>
+</div>
+
+<!-- Step 2: Multiple Jobs -->
+<div class="wizard-section" id="step-2">
+  <div class="form-card">
+    <div class="section-label">Step 2 (Optional)</div>
+    <h3>Multiple Jobs or Spouse Works</h3>
+    <div class="hint">Complete this step only if you hold more than one job at a time, or are married filing jointly and your spouse also works. If you don't need this step, skip to Step 3.</div>
+    <div class="form-grid">
+      <div class="full">
+        <label class="label">Which applies to you?</label>
+        <select class="input" name="multiple_jobs">
+          <option value="" {{ 'selected' if not data.get('multiple_jobs') }}>None / Not applicable</option>
+          <option value="use_estimator" {{ 'selected' if data.get('multiple_jobs') == 'use_estimator' }}>I used the IRS withholding estimator</option>
+          <option value="use_worksheet" {{ 'selected' if data.get('multiple_jobs') == 'use_worksheet' }}>I completed the Multiple Jobs Worksheet</option>
+          <option value="check_box" {{ 'selected' if data.get('multiple_jobs') == 'check_box' }}>Check box (2 jobs at similar pay, or spouse works)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(1)">← Back</button>
+    <button type="button" class="btn" onclick="goStep(3)">Next → Dependents</button>
+  </div>
+</div>
+
+<!-- Step 3: Dependents -->
+<div class="wizard-section" id="step-3">
+  <div class="form-card">
+    <div class="section-label">Step 3 (Optional)</div>
+    <h3>Claim Dependents</h3>
+    <div class="hint">If your income is $200,000 or less ($400,000 or less if married filing jointly), multiply the number of qualifying children by $2,000 and other dependents by $500. Enter the total.</div>
+    <div class="form-grid">
+      <div>
+        <label class="label">Qualifying children under 17</label>
+        <input class="input" name="qualifying_children" type="number" min="0" value="{{ data.get('qualifying_children','0') }}" placeholder="0">
+      </div>
+      <div>
+        <label class="label">Other dependents</label>
+        <input class="input" name="other_dependents" type="number" min="0" value="{{ data.get('other_dependents','0') }}" placeholder="0">
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(2)">← Back</button>
+    <button type="button" class="btn" onclick="goStep(4)">Next → Other Income</button>
+  </div>
+</div>
+
+<!-- Step 4: Other Adjustments -->
+<div class="wizard-section" id="step-4">
+  <div class="form-card">
+    <div class="section-label">Step 4 (Optional)</div>
+    <h3>Other Adjustments</h3>
+    <div class="hint">Use this step to have any additional tax withheld, or if you expect to claim deductions other than the standard deduction and want to reduce your withholding.</div>
+    <div class="form-grid">
+      <div>
+        <label class="label">(a) Other income (not from jobs) — $</label>
+        <input class="input" name="other_income" type="number" min="0" step="0.01" value="{{ data.get('other_income','0') }}" placeholder="0.00">
+      </div>
+      <div>
+        <label class="label">(b) Deductions — $</label>
+        <input class="input" name="deductions" type="number" min="0" step="0.01" value="{{ data.get('deductions','0') }}" placeholder="0.00">
+      </div>
+      <div class="full">
+        <label class="label">(c) Extra withholding per pay period — $</label>
+        <input class="input" name="extra_withholding" type="number" min="0" step="0.01" value="{{ data.get('extra_withholding','0') }}" placeholder="0.00">
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(3)">← Back</button>
+    <button type="button" class="btn" onclick="goStep(5)">Next → Sign</button>
+  </div>
+</div>
+
+<!-- Step 5: Signature -->
+<div class="wizard-section" id="step-5">
+  <div class="form-card">
+    <div class="section-label">Step 5</div>
+    <h3>Sign Here</h3>
+    <div class="hint">Under penalties of perjury, I declare that this certificate, to the best of my knowledge and belief, is true, correct, and complete.</div>
+    <div class="form-grid">
+      <div class="full">
+        <label class="label">Signature (type your full legal name) *</label>
+        <div class="sig-line">
+          <input class="input sig-input" name="signature" type="text" placeholder="Type your full name" value="{{ data.get('signature','') }}" required autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <label class="label">Date *</label>
+        <input class="input" name="sign_date" type="date" value="{{ data.get('sign_date','') }}" required>
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(4)">← Back</button>
+    <button type="submit" class="btn">Submit W-4</button>
+  </div>
+</div>
+
+</form>
+</div>
+
+<script>
+let currentStep = 1;
+function goStep(n) {
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  document.getElementById('step-tab-' + currentStep).classList.remove('active');
+  if (n < currentStep) {
+    document.getElementById('step-tab-' + currentStep).classList.remove('done');
+  } else {
+    document.getElementById('step-tab-' + currentStep).classList.add('done');
+  }
+  currentStep = n;
+  document.getElementById('step-' + n).classList.add('active');
+  document.getElementById('step-tab-' + n).classList.add('active');
+  document.getElementById('step-tab-' + n).classList.remove('done');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+{% endblock %}

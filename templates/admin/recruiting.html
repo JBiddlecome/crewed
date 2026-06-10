@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Recruiting — Crewed{% endblock %}
+{% block heading %}Recruiting{% endblock %}
+{% block subheading %}
+  <p class="subheading">Manage employee onboarding and activation</p>
+{% endblock %}
+{% block actions %}
+  <div class="btn-group">
+    <a href="/admin/recruiting/documents" class="btn btn-outline">Document Library</a>
+    <a href="/admin/recruiting/package" class="btn btn-outline">Onboarding Package</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<style>
+.recruit-filters { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+.recruit-filters a { padding:6px 16px; border-radius:20px; font-size:.82rem; font-weight:600; text-decoration:none; border:1.5px solid var(--border); color:var(--text-muted); transition:all .15s; }
+.recruit-filters a.active, .recruit-filters a:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+.recruit-table { width:100%; border-collapse:collapse; }
+.recruit-table th { text-align:left; font-size:.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; padding:8px 12px; border-bottom:2px solid var(--border); }
+.recruit-table td { padding:14px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.recruit-table tr:last-child td { border-bottom:none; }
+.recruit-table tr:hover td { background:var(--surface-alt); }
+
+.emp-avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:700; color:var(--accent); flex-shrink:0; }
+.emp-name-cell { display:flex; align-items:center; gap:10px; }
+.emp-name { font-weight:600; color:var(--text); font-size:.92rem; }
+.emp-email { font-size:.78rem; color:var(--text-muted); }
+
+.prog-bar-wrap { background:var(--border); border-radius:6px; height:8px; width:140px; overflow:hidden; }
+.prog-bar-fill { height:100%; border-radius:6px; background:var(--accent); transition:width .4s; }
+.prog-bar-fill.done { background:#22c55e; }
+.prog-label { font-size:.78rem; color:var(--text-muted); margin-top:3px; }
+
+.status-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; font-size:.75rem; font-weight:600; }
+.status-pill.pending { background:#fef3c7; color:#92400e; }
+.status-pill.active { background:#d1fae5; color:#065f46; }
+.status-pill.disabled { background:#fee2e2; color:#991b1b; }
+
+.recruit-actions { display:flex; gap:8px; }
+.recruit-actions a, .recruit-actions button { padding:5px 12px; font-size:.78rem; border-radius:8px; font-weight:600; text-decoration:none; border:1.5px solid var(--border); cursor:pointer; background:transparent; color:var(--text); transition:all .15s; }
+.recruit-actions a:hover, .recruit-actions button:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-activate { background:var(--accent) !important; color:#fff !important; border-color:var(--accent) !important; }
+.btn-activate:disabled { opacity:.5; cursor:not-allowed; }
+
+.empty-state { text-align:center; padding:60px 20px; color:var(--text-muted); }
+.empty-state svg { width:48px; height:48px; margin:0 auto 12px; display:block; opacity:.3; }
+
+.pkg-warning { background:#fef3c7; border:1.5px solid #f59e0b; border-radius:12px; padding:14px 18px; margin-bottom:20px; font-size:.88rem; color:#78350f; display:flex; align-items:center; gap:10px; }
+.pkg-warning svg { flex-shrink:0; }
+</style>
+
+{% if package_count == 0 %}
+<div class="pkg-warning">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  No onboarding package configured. <a href="/admin/recruiting/package" style="font-weight:700; color:var(--accent);">Set up the package</a> before employees can begin onboarding.
+</div>
+{% endif %}
+
+<div class="recruit-filters">
+  <a href="/admin/recruiting" class="{{ 'active' if filter_status == '' }}">All</a>
+  <a href="/admin/recruiting?status=pending" class="{{ 'active' if filter_status == 'pending' }}">Pending</a>
+  <a href="/admin/recruiting?status=active" class="{{ 'active' if filter_status == 'active' }}">Active</a>
+  <a href="/admin/recruiting?status=disabled" class="{{ 'active' if filter_status == 'disabled' }}">Disabled</a>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+{% if employees %}
+<table class="recruit-table">
+  <thead>
+    <tr>
+      <th>Employee</th>
+      <th>Status</th>
+      <th>Joined</th>
+      <th>Onboarding</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for emp in employees %}
+    {% set prog = progress[emp.id] %}
+    <tr>
+      <td>
+        <div class="emp-name-cell">
+          {% if emp.profile_picture %}
+            <img class="emp-avatar" src="/uploads/profile_pics/{{ emp.profile_picture }}" alt="">
+          {% else %}
+            <div class="emp-avatar">{{ emp.first_name[0] }}{{ emp.last_name[0] }}</div>
+          {% endif %}
+          <div>
+            <div class="emp-name">{{ emp.name }}</div>
+            <div class="emp-email">{{ emp.email }}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="status-pill {{ emp.status }}">{{ emp.status|title }}</span></td>
+      <td style="font-size:.82rem; color:var(--text-muted);">{{ emp.created_at.strftime('%b %d, %Y') }}</td>
+      <td>
+        {% if prog.total == 0 %}
+          <span style="font-size:.78rem; color:var(--text-muted);">No package</span>
+        {% else %}
+          <div class="prog-bar-wrap"><div class="prog-bar-fill {{ 'done' if prog.pct == 100 }}" style="width:{{ prog.pct }}%"></div></div>
+          <div class="prog-label">{{ prog.complete }}/{{ prog.total }} complete ({{ prog.pct }}%)</div>
+        {% endif %}
+      </td>
+      <td>
+        <div class="recruit-actions">
+          <a href="/admin/recruiting/{{ emp.id }}">View</a>
+          {% if emp.status != 'active' and prog.pct == 100 %}
+            <form method="post" action="/admin/recruiting/{{ emp.id }}/activate" style="margin:0">
+              <button type="submit" class="btn-activate">Activate</button>
+            </form>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+  <p>No employees found.</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}

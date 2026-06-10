@@ -1,27 +1,73 @@
 {% extends "base.html" %}
 {% block title %}Clients — Crewed{% endblock %}
 {% block heading %}Clients{% endblock %}
+{% block subheading %}<div class="sub">{{ clients|length }} client{% if clients|length != 1 %}s{% endif %}</div>{% endblock %}
+{% block actions %}<a class="btn" href="/admin/clients/new">+ New Client</a>{% endblock %}
 {% block content %}
 
 <div class="card">
   {% if clients %}
   <table class="table">
-    <thead><tr><th>Company</th><th>Locations</th><th>Positions</th><th>Shifts</th><th>Markup</th><th></th></tr></thead>
+    <thead><tr>
+      <th>Company</th>
+      <th>Status</th>
+      <th>Industry</th>
+      <th>Locations</th>
+      <th>Positions</th>
+      <th>Shifts</th>
+      <th>Markup</th>
+      <th></th>
+    </tr></thead>
     <tbody>
       {% for c in clients %}
       <tr>
-        <td class="strong">{{ c.name }}</td>
+        <td>
+          <span class="strong">{{ c.name }}</span>
+          {% if c.city or c.state %}
+            <div style="font-size:.78rem;color:var(--muted);margin-top:2px">
+              {{ [c.city, c.state]|select|join(', ') }}
+            </div>
+          {% endif %}
+        </td>
+        <td>
+          {% if c.status == 'active' %}
+            <span class="badge badge-open">Active</span>
+          {% elif c.status == 'prospect' %}
+            <span class="badge" style="background:var(--amber-tint,#fff3cd);color:var(--amber-deep,#856404)">Prospect</span>
+          {% elif c.status == 'inactive' %}
+            <span class="badge badge-cancelled">Inactive</span>
+          {% elif c.status == 'terminated' %}
+            <span class="badge" style="background:#f8d7da;color:#842029">Terminated</span>
+          {% else %}
+            <span class="badge">{{ c.status or '—' }}</span>
+          {% endif %}
+        </td>
+        <td>{{ c.industry or '—' }}</td>
         <td>{{ c.locations|length }}</td>
         <td>{{ c.positions|length }}</td>
         <td>{{ c.shifts|length }}</td>
-        <td>{% if c.markup_override is not none %}{{ c.markup_override|round(0)|int }}% <span class="chip">override</span>{% else %}<span style="color:var(--muted)">global</span>{% endif %}</td>
-        <td class="actions"><a class="btn btn-ghost btn-sm" href="/admin/clients/{{ c.id }}">View</a></td>
+        <td>
+          {% if c.markup_override is not none %}
+            {{ c.markup_override|round(0)|int }}%
+            <span class="chip">override</span>
+          {% else %}
+            <span style="color:var(--muted)">global</span>
+          {% endif %}
+        </td>
+        <td class="actions">
+          <a class="btn btn-ghost btn-sm" href="/admin/clients/{{ c.id }}">View</a>
+          <a class="btn btn-ghost btn-sm" href="/admin/clients/{{ c.id }}/edit">Edit</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="empty"><div class="mark">B</div><p>No clients yet — they can self-register from the landing page.</p></div>
+  <div class="empty">
+    <div class="mark">🏢</div>
+    <p>No clients yet.</p>
+    <a class="btn" href="/admin/clients/new">Add Your First Client</a>
+  </div>
   {% endif %}
 </div>
 

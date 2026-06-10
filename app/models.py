@@ -55,6 +55,15 @@ class ClientCompany(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     phone = Column(String)
+    email = Column(String)
+    address1 = Column(String)
+    address2 = Column(String)
+    city = Column(String)
+    state = Column(String)
+    zip = Column(String)
+    industry = Column(String)
+    status = Column(String, default="active")   # active | prospect | inactive | terminated
+    notes = Column(Text)
     markup_override = Column(Float)  # percent; null = use global setting
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -361,3 +370,94 @@ class AList(Base):
     employee = relationship("User", foreign_keys=[employee_id])
     client = relationship("ClientCompany")
     location = relationship("Location")
+
+
+# ──────────────────────────────────────────────────────────────
+# Onboarding / Recruiting
+# ──────────────────────────────────────────────────────────────
+
+class OnboardingDocument(Base):
+    """A PDF document uploaded by an admin for the onboarding package."""
+    __tablename__ = "onboarding_document"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    # doc_type: 'pdf' | 'w4_wizard' | 'i9_wizard'
+    doc_type = Column(String, default="pdf", nullable=False)
+    filename = Column(String)              # stored filename in uploads/onboarding_pdfs/
+    description = Column(Text)
+    requires_signature = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    fields = relationship(
+        "OnboardingField", back_populates="document", cascade="all, delete-orphan",
+        order_by="OnboardingField.page, OnboardingField.y_pct"
+    )
+    package_items = relationship("OnboardingPackageItem", back_populates="document")
+
+
+class OnboardingField(Base):
+    """A positioned input field overlay on a page of an onboarding PDF."""
+    __tablename__ = "onboarding_field"
+    id = Column(Integer, primary_key=True)
+    document_id = Column(Integer, ForeignKey("onboarding_document.id"), nullable=False)
+    page = Column(Integer, default=1, nullable=False)    # 1-indexed
+    # field_type: 'text' | 'signature' | 'date' | 'checkbox' | 'email' | 'phone' | 'address'
+    field_type = Column(String, default="text", nullable=False)
+    label = Column(String, nullable=False)               # e.g. "Full Name", "Signature"
+    # Position as % of page dimensions (0–100) for resolution independence
+    x_pct = Column(Float, nullable=False, default=10.0)
+    y_pct = Column(Float, nullable=False, default=10.0)
+    w_pct = Column(Float, nullable=False, default=30.0)
+    h_pct = Column(Float, nullable=False, default=5.0)
+    required = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+
+    document = relationship("OnboardingDocument", back_populates="fields")
+    values = relationship(
+        "EmployeeOnboardingFieldValue", back_populates="field", cascade="all, delete-orphan"
+    )
+
+
+class OnboardingPackageItem(Base):
+    """Ordered list of documents every new employee must complete."""
+    __tablename__ = "onboarding_package_item"
+    id = Column(Integer, primary_key=True)
+    document_id = Column(Integer, ForeignKey("onboarding_document.id"), nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    required = Column(Boolean, default=True)
+
+    document = relationship("OnboardingDocument", back_populates="package_items")
+
+
+class EmployeeOnboarding(Base):
+    """Tracks one employee's progress on one onboarding document."""
+    __tablename__ = "employee_onboarding"
+    __table_args__ = (UniqueConstraint("employee_id", "document_id"),)
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    document_id = Column(Integer, ForeignKey("onboarding_document.id"), nullable=False)
+    # status: 'not_started' | 'in_progress' | 'complete'
+    status = Column(String, default="not_started", nullable=False)
+    completed_at = Column(DateTime)
+    # For wizard types, stores JSON blob of all answers
+    wizard_data = Column(Text)
+
+    employee = relationship("User")
+    document = relationship("OnboardingDocument")
+    field_values = relationship(
+        "EmployeeOnboardingFieldValue", back_populates="onboarding_record",
+        cascade="all, delete-orphan"
+    )
+
+
+class EmployeeOnboardingFieldValue(Base):
+    """The value an employee entered for a specific field on a document."""
+    __tablename__ = "employee_onboarding_field_value"
+    __table_args__ = (UniqueConstraint("onboarding_id", "field_id"),)
+    id = Column(Integer, primary_key=True)
+    onboarding_id = Column(Integer, ForeignKey("employee_onboarding.id"), nullable=False)
+    field_id = Column(Integer, ForeignKey("onboarding_field.id"), nullable=False)
+    value = Column(Text)
+
+    onboarding_record = relationship("EmployeeOnboarding", back_populates="field_values")
+    field = relationship("OnboardingField", back_populates="values")

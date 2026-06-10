@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Onboarding Package — Crewed{% endblock %}
+{% block heading %}Onboarding Package{% endblock %}
+{% block subheading %}<p class="subheading">Define which documents every new employee must complete</p>{% endblock %}
+{% block actions %}
+  <div class="btn-group">
+    <a href="/admin/recruiting" class="btn btn-outline">← Recruiting</a>
+    <a href="/admin/recruiting/documents" class="btn btn-outline">Document Library</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<style>
+.package-layout { display:grid; grid-template-columns:1fr 340px; gap:24px; }
+.pkg-list { display:flex; flex-direction:column; gap:0; }
+.pkg-item { display:flex; align-items:center; gap:14px; background:var(--surface); border:1.5px solid var(--border); border-radius:0; padding:16px 18px; cursor:grab; transition:box-shadow .15s; position:relative; }
+.pkg-item:first-child { border-radius:14px 14px 0 0; }
+.pkg-item:last-child { border-radius:0 0 14px 14px; }
+.pkg-item:only-child { border-radius:14px; }
+.pkg-item + .pkg-item { border-top:none; }
+.pkg-item.drag-over { box-shadow:0 0 0 2px var(--accent); z-index:2; }
+.pkg-item.dragging { opacity:.5; }
+.drag-handle { color:var(--text-muted); cursor:grab; font-size:1.1rem; flex-shrink:0; }
+.pkg-item-num { width:28px; height:28px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:.82rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pkg-item-info { flex:1; min-width:0; }
+.pkg-item-name { font-weight:700; font-size:.92rem; color:var(--text); }
+.pkg-item-meta { font-size:.75rem; color:var(--text-muted); margin-top:2px; }
+.pkg-item-badges { display:flex; gap:6px; margin-top:4px; }
+.pkg-badge { padding:2px 8px; border-radius:10px; font-size:.7rem; font-weight:600; }
+.pkg-badge.pdf { background:#fee2e2; color:#dc2626; }
+.pkg-badge.w4_wizard { background:#dbeafe; color:#2563eb; }
+.pkg-badge.i9_wizard { background:#d1fae5; color:#059669; }
+.pkg-badge.req { background:#fef3c7; color:#92400e; }
+.pkg-remove-btn { padding:5px 10px; font-size:.75rem; font-weight:600; border:1.5px solid #fee2e2; border-radius:8px; background:transparent; color:#dc2626; cursor:pointer; transition:all .15s; }
+.pkg-remove-btn:hover { background:#dc2626; color:#fff; border-color:#dc2626; }
+
+.add-card { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:20px; }
+.add-card h3 { font-size:.88rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:0 0 14px; }
+.avail-list { display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto; margin-bottom:16px; }
+.avail-item { background:var(--surface-alt); border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; display:flex; align-items:center; gap:12px; }
+.avail-item label { flex:1; cursor:pointer; }
+.avail-item-name { font-weight:600; font-size:.88rem; color:var(--text); }
+.avail-item-type { font-size:.74rem; color:var(--text-muted); }
+.empty-pkg { text-align:center; padding:40px; color:var(--text-muted); background:var(--surface); border:1.5px solid var(--border); border-radius:14px; }
+
+.order-hint { font-size:.78rem; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+</style>
+
+<div class="package-layout">
+
+  <!-- Package Order -->
+  <div>
+    <p class="order-hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Drag items to reorder. Employees complete documents in this order.
+    </p>
+    {% if items %}
+    <div class="pkg-list" id="pkg-list">
+      {% for item in items %}
+      <div class="pkg-item" draggable="true" data-id="{{ item.id }}">
+        <span class="drag-handle">⠿</span>
+        <div class="pkg-item-num">{{ loop.index }}</div>
+        <div class="pkg-item-info">
+          <div class="pkg-item-name">{{ item.document.name }}</div>
+          <div class="pkg-item-meta">{{ item.document.description or '' }}</div>
+          <div class="pkg-item-badges">
+            <span class="pkg-badge {{ item.document.doc_type }}">{{ {'pdf':'PDF','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard'}.get(item.document.doc_type, item.document.doc_type) }}</span>
+            {% if item.required %}<span class="pkg-badge req">Required</span>{% endif %}
+            {% if item.document.doc_type == 'pdf' %}
+              <span class="pkg-badge" style="background:var(--surface-alt); color:var(--text-muted);">{{ item.document.fields|length }} field{{ 's' if item.document.fields|length != 1 }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <form method="post" action="/admin/recruiting/package/{{ item.id }}/remove" style="margin:0;">
+          <button type="submit" class="pkg-remove-btn" onclick="return confirm('Remove from package?')">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-pkg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" style="margin:0 auto 10px; display:block; opacity:.3;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <p>No documents in the package yet.</p>
+      <p style="font-size:.82rem;">Add documents from the library on the right.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Add from Library -->
+  <div class="add-card">
+    <h3>Add to Package</h3>
+    {% if available %}
+    <form method="post" action="/admin/recruiting/package/add">
+      <div class="avail-list">
+        {% for doc in available %}
+        <div class="avail-item">
+          <input type="radio" name="document_id" value="{{ doc.id }}" id="avail-{{ doc.id }}">
+          <label for="avail-{{ doc.id }}">
+            <div class="avail-item-name">{{ doc.name }}</div>
+            <div class="avail-item-type">{{ {'pdf':'PDF Document','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard'}.get(doc.doc_type, doc.doc_type) }}</div>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <input type="checkbox" id="req-cb" name="required" value="true" checked style="width:14px; height:14px;">
+        <label for="req-cb" style="font-size:.82rem; font-weight:600; cursor:pointer;">Mark as required</label>
+      </div>
+      <button class="btn btn-block" type="submit">Add to Package</button>
+    </form>
+    {% else %}
+    <p style="font-size:.82rem; color:var(--text-muted);">All documents from the library are already in the package. <a href="/admin/recruiting/documents" style="color:var(--accent);">Upload more.</a></p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// Drag-to-reorder
+const list = document.getElementById('pkg-list');
+if (list) {
+  let dragged = null;
+  list.querySelectorAll('.pkg-item').forEach(item => {
+    item.addEventListener('dragstart', () => { dragged = item; item.classList.add('dragging'); });
+    item.addEventListener('dragend', () => { item.classList.remove('dragging'); dragged = null; saveOrder(); });
+    item.addEventListener('dragover', e => { e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault(); item.classList.remove('drag-over');
+      if (dragged && dragged !== item) list.insertBefore(dragged, item);
+    });
+  });
+
+  function saveOrder() {
+    const order = [...list.querySelectorAll('.pkg-item')].map(i => i.dataset.id);
+    // Renumber badges
+    list.querySelectorAll('.pkg-item-num').forEach((n, i) => n.textContent = i + 1);
+    fetch('/admin/recruiting/package/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order })
+    });
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Document Library — Crewed{% endblock %}
+{% block heading %}Document Library{% endblock %}
+{% block subheading %}<p class="subheading">Upload and manage onboarding PDF documents</p>{% endblock %}
+{% block actions %}
+  <div class="btn-group">
+    <a href="/admin/recruiting" class="btn btn-outline">← Recruiting</a>
+    <a href="/admin/recruiting/package" class="btn btn-outline">Manage Package</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<style>
+.doc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; margin-bottom:30px; }
+.doc-card { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:20px; transition:box-shadow .2s; position:relative; }
+.doc-card:hover { box-shadow:0 6px 24px rgba(0,0,0,.08); }
+.doc-card-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+.doc-card-icon.pdf { background:#fee2e2; color:#dc2626; }
+.doc-card-icon.w4 { background:#dbeafe; color:#2563eb; }
+.doc-card-icon.i9 { background:#d1fae5; color:#059669; }
+.doc-card-icon.wizard { background:#ede9fe; color:#7c3aed; }
+.doc-card h3 { font-size:.95rem; font-weight:700; color:var(--text); margin:0 0 4px; }
+.doc-card .doc-desc { font-size:.8rem; color:var(--text-muted); margin:0 0 14px; line-height:1.45; min-height:36px; }
+.doc-card .doc-meta { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.doc-badge { display:inline-flex; padding:2px 9px; border-radius:10px; font-size:.72rem; font-weight:600; }
+.doc-badge.pdf { background:#fee2e2; color:#dc2626; }
+.doc-badge.w4_wizard { background:#dbeafe; color:#2563eb; }
+.doc-badge.i9_wizard { background:#d1fae5; color:#059669; }
+.doc-badge.sig { background:#fef3c7; color:#92400e; }
+.doc-card-actions { display:flex; gap:8px; }
+.doc-card-actions a, .doc-card-actions button { flex:1; text-align:center; padding:7px; font-size:.78rem; font-weight:600; border-radius:8px; cursor:pointer; text-decoration:none; transition:all .15s; }
+.doc-card-actions .btn-edit { background:var(--accent-soft); color:var(--accent); border:1px solid transparent; }
+.doc-card-actions .btn-edit:hover { background:var(--accent); color:#fff; }
+.doc-card-actions .btn-del { background:#fee2e2; color:#dc2626; border:1px solid transparent; }
+.doc-card-actions .btn-del:hover { background:#dc2626; color:#fff; }
+.field-count { font-size:.75rem; color:var(--text-muted); }
+
+.upload-card { background:var(--surface); border:2px dashed var(--border); border-radius:16px; padding:28px 24px; }
+.upload-card h3 { font-size:1rem; font-weight:700; margin:0 0 16px; }
+.upload-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.upload-form-grid .full { grid-column:1/-1; }
+.doc-type-selector { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.doc-type-opt { cursor:pointer; }
+.doc-type-opt input { display:none; }
+.doc-type-opt .opt-card { border:2px solid var(--border); border-radius:10px; padding:10px; text-align:center; transition:all .15s; }
+.doc-type-opt input:checked + .opt-card { border-color:var(--accent); background:var(--accent-soft); }
+.doc-type-opt .opt-card svg { display:block; margin:0 auto 5px; }
+.doc-type-opt .opt-card span { font-size:.75rem; font-weight:600; color:var(--text-muted); }
+.doc-type-opt input:checked + .opt-card span { color:var(--accent); }
+</style>
+
+<!-- Upload Form -->
+<div class="upload-card" style="margin-bottom:28px;">
+  <h3>Add New Document</h3>
+  <form method="post" action="/admin/recruiting/documents/upload" enctype="multipart/form-data">
+    <div class="upload-form-grid">
+      <div class="full">
+        <label class="label">Document Type</label>
+        <div class="doc-type-selector">
+          <label class="doc-type-opt">
+            <input type="radio" name="doc_type" value="pdf" checked onchange="toggleFileInput(this)">
+            <div class="opt-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>PDF Document</span>
+            </div>
+          </label>
+          <label class="doc-type-opt">
+            <input type="radio" name="doc_type" value="w4_wizard" onchange="toggleFileInput(this)">
+            <div class="opt-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              <span>W-4 Wizard</span>
+            </div>
+          </label>
+          <label class="doc-type-opt">
+            <input type="radio" name="doc_type" value="i9_wizard" onchange="toggleFileInput(this)">
+            <div class="opt-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>I-9 Wizard</span>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div>
+        <label class="label" for="doc-name">Document Name *</label>
+        <input class="input" id="doc-name" name="name" type="text" placeholder="e.g. Employee Handbook" required>
+      </div>
+      <div id="file-field">
+        <label class="label" for="doc-file">PDF File *</label>
+        <input class="input" id="doc-file" name="pdf_file" type="file" accept=".pdf">
+      </div>
+      <div class="full">
+        <label class="label" for="doc-desc">Description (optional)</label>
+        <input class="input" id="doc-desc" name="description" type="text" placeholder="Brief description of this document">
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; padding-top:18px;">
+        <input type="checkbox" id="req-sig" name="requires_signature" value="true" style="width:16px; height:16px;">
+        <label for="req-sig" style="font-size:.88rem; font-weight:600; cursor:pointer;">Requires employee signature</label>
+      </div>
+      <div style="display:flex; align-items:flex-end;">
+        <button class="btn btn-block" type="submit">Add Document</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Document Grid -->
+{% if documents %}
+<div class="doc-grid">
+  {% for doc in documents %}
+  <div class="doc-card">
+    <div class="doc-card-icon {{ doc.doc_type if doc.doc_type != 'pdf' else 'pdf' }}">
+      {% if doc.doc_type == 'pdf' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      {% elif doc.doc_type == 'w4_wizard' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      {% endif %}
+    </div>
+    <h3>{{ doc.name }}</h3>
+    <p class="doc-desc">{{ doc.description or 'No description.' }}</p>
+    <div class="doc-meta">
+      <span class="doc-badge {{ doc.doc_type }}">{{ {'pdf':'PDF','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard'}.get(doc.doc_type, doc.doc_type) }}</span>
+      {% if doc.requires_signature %}<span class="doc-badge sig">Requires Signature</span>{% endif %}
+      {% if doc.doc_type == 'pdf' %}<span class="field-count">{{ doc.fields|length }} field{{ 's' if doc.fields|length != 1 }}</span>{% endif %}
+    </div>
+    <div class="doc-card-actions">
+      {% if doc.doc_type == 'pdf' %}
+      <a href="/admin/recruiting/documents/{{ doc.id }}" class="btn-edit">Edit Fields</a>
+      {% else %}
+      <span class="btn-edit" style="opacity:.5; cursor:default;">Wizard Built-in</span>
+      {% endif %}
+      <form method="post" action="/admin/recruiting/documents/{{ doc.id }}/delete" style="margin:0; flex:1; display:flex;">
+        <button type="submit" class="btn-del" onclick="return confirm('Delete {{ doc.name }}?')">Delete</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center; padding:48px; color:var(--text-muted);">
+  <p>No documents yet. Upload your first document above.</p>
+</div>
+{% endif %}
+
+<script>
+function toggleFileInput(radio) {
+  var ff = document.getElementById('file-field');
+  ff.style.display = radio.value === 'pdf' ? '' : 'none';
+}
+</script>
+{% endblock %}

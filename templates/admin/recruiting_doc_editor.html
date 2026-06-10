@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Field Editor — {{ doc.name }} — Crewed{% endblock %}
+{% block heading %}Field Editor{% endblock %}
+{% block subheading %}<p class="subheading">{{ doc.name }}</p>{% endblock %}
+{% block actions %}
+  <div class="btn-group">
+    <a href="/admin/recruiting/documents" class="btn btn-outline">← Library</a>
+    <button id="save-fields-btn" class="btn">Save Fields</button>
+  </div>
+{% endblock %}
+
+{% block content %}
+<style>
+.editor-layout { display:grid; grid-template-columns:1fr 300px; gap:20px; height:calc(100vh - 180px); }
+.pdf-canvas-wrap { background:#e5e7eb; border-radius:16px; overflow:auto; position:relative; display:flex; flex-direction:column; align-items:center; padding:20px; gap:20px; }
+.pdf-page-wrap { position:relative; display:inline-block; box-shadow:0 4px 20px rgba(0,0,0,.2); }
+.pdf-page-wrap canvas { display:block; }
+.field-overlay { position:absolute; box-sizing:border-box; border:2px solid var(--accent); border-radius:4px; background:rgba(88,64,82,0.12); cursor:move; user-select:none; }
+.field-overlay.signature { border-color:#f87c50; background:rgba(248,124,80,.12); }
+.field-overlay.date { border-color:#2563eb; background:rgba(37,99,235,.1); }
+.field-overlay.checkbox { border-color:#059669; background:rgba(5,150,105,.1); }
+.field-overlay-label { position:absolute; top:-20px; left:0; font-size:10px; font-weight:700; white-space:nowrap; background:var(--accent); color:#fff; padding:1px 5px; border-radius:3px; pointer-events:none; }
+.field-overlay.signature .field-overlay-label { background:#f87c50; }
+.field-overlay.date .field-overlay-label { background:#2563eb; }
+.field-overlay.checkbox .field-overlay-label { background:#059669; }
+.resize-handle { position:absolute; bottom:0; right:0; width:10px; height:10px; background:var(--accent); border-radius:2px; cursor:se-resize; }
+
+/* Sidebar */
+.editor-sidebar { display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+.sidebar-section { background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:16px; }
+.sidebar-section h4 { font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:0 0 12px; }
+
+.add-field-form { display:flex; flex-direction:column; gap:8px; }
+.field-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.ftype-btn { padding:7px 4px; font-size:.75rem; font-weight:600; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; background:transparent; color:var(--text-muted); text-align:center; transition:all .15s; }
+.ftype-btn.active, .ftype-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.ftype-btn[data-type="signature"].active { border-color:#f87c50; color:#f87c50; background:#fee7dd; }
+.ftype-btn[data-type="date"].active { border-color:#2563eb; color:#2563eb; background:#dbeafe; }
+.ftype-btn[data-type="checkbox"].active { border-color:#059669; color:#059669; background:#d1fae5; }
+
+.field-list { display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto; }
+.field-item { background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; font-size:.8rem; }
+.field-item-label { font-weight:600; color:var(--text); }
+.field-item-meta { font-size:.72rem; color:var(--text-muted); }
+.field-item-del { width:22px; height:22px; border-radius:6px; border:none; background:#fee2e2; color:#dc2626; cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.field-item-del:hover { background:#dc2626; color:#fff; }
+
+.page-nav { display:flex; align-items:center; gap:8px; }
+.page-nav button { padding:4px 10px; border:1.5px solid var(--border); border-radius:6px; background:transparent; cursor:pointer; font-size:.8rem; font-weight:600; }
+.page-nav button:disabled { opacity:.4; cursor:not-allowed; }
+.page-nav span { font-size:.82rem; color:var(--text-muted); }
+</style>
+
+<!-- PDF.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+
+<div class="editor-layout">
+  <!-- PDF Canvas Area -->
+  <div class="pdf-canvas-wrap" id="pdf-container">
+    <div id="pages-wrap"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="editor-sidebar">
+
+    <!-- Page Navigation -->
+    <div class="sidebar-section">
+      <h4>Pages</h4>
+      <div class="page-nav">
+        <button id="prev-page" onclick="changePage(-1)" disabled>‹ Prev</button>
+        <span id="page-indicator">Page 1 / ?</span>
+        <button id="next-page" onclick="changePage(1)">Next ›</button>
+      </div>
+    </div>
+
+    <!-- Add Field -->
+    <div class="sidebar-section">
+      <h4>Add Field</h4>
+      <div class="add-field-form">
+        <div>
+          <label class="label" style="font-size:.75rem;">Field Type</label>
+          <div class="field-type-grid">
+            <button class="ftype-btn active" data-type="text" onclick="selectType('text',this)">Text</button>
+            <button class="ftype-btn" data-type="signature" onclick="selectType('signature',this)">Signature</button>
+            <button class="ftype-btn" data-type="date" onclick="selectType('date',this)">Date</button>
+            <button class="ftype-btn" data-type="email" onclick="selectType('email',this)">Email</button>
+            <button class="ftype-btn" data-type="phone" onclick="selectType('phone',this)">Phone</button>
+            <button class="ftype-btn" data-type="address" onclick="selectType('address',this)">Address</button>
+            <button class="ftype-btn" data-type="checkbox" onclick="selectType('checkbox',this)">Checkbox</button>
+          </div>
+        </div>
+        <div>
+          <label class="label" style="font-size:.75rem;">Label</label>
+          <input class="input" id="field-label" type="text" placeholder="e.g. Full Name" style="font-size:.85rem;">
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="field-required" checked style="width:14px; height:14px;">
+          <label for="field-required" style="font-size:.82rem; cursor:pointer;">Required</label>
+        </div>
+        <button class="btn" onclick="addField()" style="font-size:.82rem;">+ Click PDF to Place</button>
+      </div>
+    </div>
+
+    <!-- Field List -->
+    <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+      <h4>Fields (<span id="field-count">0</span>)</h4>
+      <div class="field-list" id="field-list"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+const DOC_ID = {{ doc.id }};
+const PDF_URL = '/uploads/onboarding_pdfs/{{ doc.filename }}';
+const SCALE = 1.5;
+
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let fields = [];
+let placingField = false;
+let selectedType = 'text';
+let pageCanvases = {}; // page -> canvas element
+
+// Load existing fields
+const existingFields = [
+  {% for f in doc.fields %}
+  { id: {{ f.id }}, page: {{ f.page }}, field_type: "{{ f.field_type }}", label: "{{ f.label|replace('"','\\\"') }}", x_pct: {{ f.x_pct }}, y_pct: {{ f.y_pct }}, w_pct: {{ f.w_pct }}, h_pct: {{ f.h_pct }}, required: {{ 'true' if f.required else 'false' }} },
+  {% endfor %}
+];
+fields = existingFields.map((f, i) => ({ ...f, _uid: i }));
+
+window.selectType = function(type, btn) {
+  selectedType = type;
+  document.querySelectorAll('.ftype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+};
+
+window.changePage = function(delta) {
+  const newPage = currentPage + delta;
+  if (newPage < 1 || newPage > totalPages) return;
+  currentPage = newPage;
+  renderPage(currentPage);
+  updatePageNav();
+};
+
+function updatePageNav() {
+  document.getElementById('page-indicator').textContent = `Page ${currentPage} / ${totalPages}`;
+  document.getElementById('prev-page').disabled = currentPage <= 1;
+  document.getElementById('next-page').disabled = currentPage >= totalPages;
+}
+
+async function loadPDF() {
+  try {
+    pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+    totalPages = pdfDoc.numPages;
+    updatePageNav();
+    await renderPage(1);
+    renderFieldList();
+    renderOverlays();
+  } catch(e) {
+    document.getElementById('pages-wrap').innerHTML = '<p style="color:var(--text-muted); padding:20px;">Could not load PDF preview.</p>';
+  }
+}
+
+async function renderPage(num) {
+  const pagesWrap = document.getElementById('pages-wrap');
+  if (pageCanvases[num]) {
+    document.querySelectorAll('.pdf-page-wrap').forEach(w => w.style.display = 'none');
+    pageCanvases[num].parentElement.style.display = '';
+    renderOverlays();
+    return;
+  }
+
+  const page = await pdfDoc.getPage(num);
+  const viewport = page.getViewport({ scale: SCALE });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'pdf-page-wrap';
+  wrap.dataset.page = num;
+  wrap.style.width = viewport.width + 'px';
+  wrap.style.height = viewport.height + 'px';
+
+  wrap.appendChild(canvas);
+  pagesWrap.appendChild(wrap);
+  pageCanvases[num] = canvas;
+
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+  // Click to place field
+  wrap.addEventListener('click', function(e) {
+    if (!placingField) return;
+    const rect = wrap.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    const label = document.getElementById('field-label').value.trim() || selectedType;
+    const required = document.getElementById('field-required').checked;
+    const uid = Date.now();
+    const wPct = selectedType === 'checkbox' ? 4 : 28;
+    const hPct = selectedType === 'checkbox' ? 4 : 5;
+    fields.push({ _uid: uid, page: currentPage, field_type: selectedType, label, x_pct: xPct, y_pct: yPct, w_pct: wPct, h_pct: hPct, required });
+    placingField = false;
+    wrap.style.cursor = '';
+    renderOverlays();
+    renderFieldList();
+  });
+
+  renderOverlays();
+}
+
+function renderOverlays() {
+  // Remove old overlays on current page
+  const wrap = document.querySelector(`.pdf-page-wrap[data-page="${currentPage}"]`);
+  if (!wrap) return;
+  wrap.querySelectorAll('.field-overlay').forEach(el => el.remove());
+
+  const wrapW = wrap.offsetWidth;
+  const wrapH = wrap.offsetHeight;
+
+  fields.filter(f => f.page === currentPage).forEach(f => {
+    const el = document.createElement('div');
+    el.className = `field-overlay ${f.field_type}`;
+    el.dataset.uid = f._uid;
+    el.style.left = (f.x_pct / 100 * wrapW) + 'px';
+    el.style.top = (f.y_pct / 100 * wrapH) + 'px';
+    el.style.width = (f.w_pct / 100 * wrapW) + 'px';
+    el.style.height = (f.h_pct / 100 * wrapH) + 'px';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'field-overlay-label';
+    lbl.textContent = f.label;
+    el.appendChild(lbl);
+
+    const rh = document.createElement('div');
+    rh.className = 'resize-handle';
+    el.appendChild(rh);
+
+    makeDraggable(el, f, wrap, wrapW, wrapH);
+    makeResizable(el, rh, f, wrap, wrapW, wrapH);
+    wrap.appendChild(el);
+  });
+}
+
+function makeDraggable(el, field, wrap, wW, wH) {
+  let ox, oy, startL, startT;
+  el.addEventListener('mousedown', function(e) {
+    if (e.target.classList.contains('resize-handle')) return;
+    e.preventDefault();
+    ox = e.clientX; oy = e.clientY;
+    startL = parseFloat(el.style.left); startT = parseFloat(el.style.top);
+    function onMove(e) {
+      const dx = e.clientX - ox, dy = e.clientY - oy;
+      const newL = startL + dx, newT = startT + dy;
+      el.style.left = newL + 'px'; el.style.top = newT + 'px';
+      field.x_pct = (newL / wW) * 100;
+      field.y_pct = (newT / wH) * 100;
+    }
+    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function makeResizable(el, handle, field, wrap, wW, wH) {
+  handle.addEventListener('mousedown', function(e) {
+    e.stopPropagation(); e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const sw = parseFloat(el.style.width), sh = parseFloat(el.style.height);
+    function onMove(e) {
+      const nw = Math.max(30, sw + e.clientX - sx), nh = Math.max(16, sh + e.clientY - sy);
+      el.style.width = nw + 'px'; el.style.height = nh + 'px';
+      field.w_pct = (nw / wW) * 100; field.h_pct = (nh / wH) * 100;
+    }
+    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function renderFieldList() {
+  const list = document.getElementById('field-list');
+  document.getElementById('field-count').textContent = fields.length;
+  list.innerHTML = '';
+  fields.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'field-item';
+    item.innerHTML = `<div><div class="field-item-label">${f.label}</div><div class="field-item-meta">Page ${f.page} · ${f.field_type}${f.required ? ' · required' : ''}</div></div><button class="field-item-del" title="Delete">✕</button>`;
+    item.querySelector('.field-item-del').addEventListener('click', () => {
+      fields = fields.filter(ff => ff._uid !== f._uid);
+      renderFieldList(); renderOverlays();
+    });
+    list.appendChild(item);
+  });
+}
+
+window.addField = function() {
+  const label = document.getElementById('field-label').value.trim();
+  if (!label) { alert('Please enter a field label.'); return; }
+  placingField = true;
+  const wrap = document.querySelector(`.pdf-page-wrap[data-page="${currentPage}"]`);
+  if (wrap) wrap.style.cursor = 'crosshair';
+};
+
+document.getElementById('save-fields-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-fields-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const resp = await fetch(`/admin/recruiting/documents/${DOC_ID}/fields/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+    const data = await resp.json();
+    if (data.ok) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Save Fields'; }, 2000); }
+    else { alert('Error saving: ' + JSON.stringify(data)); btn.disabled = false; btn.textContent = 'Save Fields'; }
+  } catch(e) { alert('Network error.'); btn.disabled = false; btn.textContent = 'Save Fields'; }
+});
+
+{% if doc.filename %}
+loadPDF();
+{% else %}
+document.getElementById('pages-wrap').innerHTML = '<p style="color:var(--text-muted); padding:20px; text-align:center;">No PDF uploaded for this document.</p>';
+{% endif %}
+</script>
+{% endblock %}

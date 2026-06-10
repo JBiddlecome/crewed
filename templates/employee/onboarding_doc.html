@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.name }} — Onboarding — Crewed{% endblock %}
+{% block heading %}{{ doc.name }}{% endblock %}
+{% block subheading %}<p class="subheading">Fill in all required fields and submit to complete this document</p>{% endblock %}
+{% block actions %}
+  <a href="/employee/onboarding" class="btn btn-outline">← Back to Onboarding</a>
+{% endblock %}
+
+{% block content %}
+<style>
+.pdf-doc-layout { display:grid; grid-template-columns:1fr 280px; gap:20px; min-height:600px; }
+.pdf-viewer-col { position:relative; }
+.pdf-pages-area { background:#e5e7eb; border-radius:16px; padding:20px; display:flex; flex-direction:column; align-items:center; gap:20px; min-height:500px; }
+.pdf-page-wrap { position:relative; display:inline-block; box-shadow:0 4px 20px rgba(0,0,0,.25); }
+.pdf-page-wrap canvas { display:block; }
+
+/* Field overlays */
+.field-overlay-input { position:absolute; box-sizing:border-box; background:rgba(255,255,255,.92); border:2px solid var(--accent); border-radius:4px; padding:2px 6px; font-family:inherit; font-size:13px; outline:none; transition:border-color .15s, box-shadow .15s; }
+.field-overlay-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,64,82,.15); }
+.field-overlay-input.signature { font-family:'Dancing Script', cursive, serif; font-size:16px; font-weight:700; color:#1a1a2e; border-color:#f87c50; }
+.field-overlay-input.signature:focus { box-shadow:0 0 0 3px rgba(248,124,80,.2); }
+.field-overlay-input.date { border-color:#2563eb; }
+.field-overlay-input[type="checkbox"] { width:20px !important; height:20px !important; padding:0; cursor:pointer; }
+.field-label-hint { position:absolute; top:-18px; left:0; font-size:9px; font-weight:700; color:var(--accent); pointer-events:none; white-space:nowrap; background:#fff; border-radius:2px; padding:1px 4px; }
+.field-label-hint.signature { color:#f87c50; }
+.field-label-hint.date { color:#2563eb; }
+
+/* Sidebar */
+.doc-sidebar { display:flex; flex-direction:column; gap:14px; position:sticky; top:20px; }
+.doc-sidebar-card { background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:18px; }
+.doc-sidebar-card h4 { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:0 0 12px; }
+.field-nav-list { display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
+.field-nav-item { padding:8px 10px; border-radius:8px; font-size:.8rem; background:var(--surface-alt); cursor:pointer; display:flex; align-items:center; gap:8px; transition:background .12s; }
+.field-nav-item:hover { background:var(--accent-soft); color:var(--accent); }
+.field-nav-dot { width:8px; height:8px; border-radius:50%; background:var(--border); flex-shrink:0; }
+.field-nav-dot.filled { background:var(--accent); }
+.field-nav-item.sig-type .field-nav-dot { background:#f87c50; }
+
+.page-nav-row { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.page-nav-row button { padding:4px 10px; border:1.5px solid var(--border); border-radius:6px; background:transparent; cursor:pointer; font-size:.8rem; font-weight:600; }
+.page-nav-row button:disabled { opacity:.4; cursor:not-allowed; }
+.page-nav-row span { font-size:.82rem; color:var(--text-muted); flex:1; text-align:center; }
+
+.submit-btn-wrap { margin-top:4px; }
+.already-done { background:#d1fae5; border:1.5px solid #6ee7b7; border-radius:10px; padding:12px; font-size:.84rem; color:#065f46; font-weight:600; text-align:center; }
+</style>
+
+<!-- Google Fonts for signature style -->
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+
+<form method="post" action="/employee/onboarding/{{ doc.id }}/save" id="doc-form">
+<div class="pdf-doc-layout">
+
+  <!-- PDF + Overlays -->
+  <div class="pdf-viewer-col">
+    <div class="page-nav-row">
+      <button type="button" id="prev-page" onclick="changePage(-1)" disabled>‹ Prev</button>
+      <span id="page-indicator">Loading…</span>
+      <button type="button" id="next-page" onclick="changePage(1)" disabled>Next ›</button>
+    </div>
+    <div class="pdf-pages-area" id="pdf-container">
+      <div id="pages-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="doc-sidebar">
+    <div class="doc-sidebar-card">
+      <h4>Document Fields</h4>
+      <div class="field-nav-list" id="field-nav">
+        {% for field in doc.fields %}
+        <div class="field-nav-item {{ 'sig-type' if field.field_type == 'signature' }}" onclick="scrollToField({{ field.id }})">
+          <div class="field-nav-dot" id="dot-{{ field.id }}"></div>
+          <span>{{ field.label }}{% if field.required %} *{% endif %}</span>
+        </div>
+        {% endfor %}
+        {% if not doc.fields %}
+        <p style="color:var(--text-muted); font-size:.8rem; margin:0;">No fields on this document.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="doc-sidebar-card submit-btn-wrap">
+      {% if rec and rec.status == 'complete' %}
+      <div class="already-done">✓ You've already completed this document.</div>
+      <a href="/employee/onboarding" class="btn btn-block" style="margin-top:10px;">Back to Onboarding</a>
+      {% else %}
+      <h4>Ready to submit?</h4>
+      <p style="font-size:.8rem; color:var(--text-muted); margin:0 0 12px;">Fill in all required (*) fields, then submit.</p>
+      <button type="submit" class="btn btn-block">Submit Document</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+</form>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+const PDF_URL = '/uploads/onboarding_pdfs/{{ doc.filename }}';
+const SCALE = 1.5;
+const FIELDS = [
+  {% for f in doc.fields %}
+  { id: {{ f.id }}, page: {{ f.page }}, field_type: "{{ f.field_type }}", label: "{{ f.label|replace('"','\\\"') }}", x_pct: {{ f.x_pct }}, y_pct: {{ f.y_pct }}, w_pct: {{ f.w_pct }}, h_pct: {{ f.h_pct }}, required: {{ 'true' if f.required else 'false' }} },
+  {% endfor %}
+];
+const EXISTING = {
+  {% for fid, val in existing_values.items() %}
+  {{ fid }}: {{ val|tojson }},
+  {% endfor %}
+};
+
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let pageCanvases = {};
+
+async function loadPDF() {
+  try {
+    pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+    totalPages = pdfDoc.numPages;
+    updatePageNav();
+    await renderPage(1);
+  } catch(e) {
+    document.getElementById('pages-wrap').innerHTML = '<p style="color:var(--text-muted); padding:20px;">Could not load PDF. Please contact your administrator.</p>';
+  }
+}
+
+function updatePageNav() {
+  document.getElementById('page-indicator').textContent = `Page ${currentPage} / ${totalPages}`;
+  document.getElementById('prev-page').disabled = currentPage <= 1;
+  document.getElementById('next-page').disabled = currentPage >= totalPages;
+}
+
+window.changePage = function(delta) {
+  const newPage = currentPage + delta;
+  if (newPage < 1 || newPage > totalPages) return;
+  // Hide current
+  if (pageCanvases[currentPage]) pageCanvases[currentPage].parentElement.style.display = 'none';
+  currentPage = newPage;
+  updatePageNav();
+  renderPage(currentPage);
+};
+
+async function renderPage(num) {
+  const pagesWrap = document.getElementById('pages-wrap');
+  if (pageCanvases[num]) {
+    pageCanvases[num].parentElement.style.display = '';
+    return;
+  }
+  const page = await pdfDoc.getPage(num);
+  const viewport = page.getViewport({ scale: SCALE });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const wrap = document.createElement('div');
+  wrap.className = 'pdf-page-wrap';
+  wrap.dataset.page = num;
+  wrap.style.width = viewport.width + 'px';
+  wrap.style.height = viewport.height + 'px';
+  wrap.appendChild(canvas);
+  pagesWrap.appendChild(wrap);
+  pageCanvases[num] = canvas;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  placeFields(wrap, num, viewport.width, viewport.height);
+}
+
+function placeFields(wrap, pageNum, wW, wH) {
+  FIELDS.filter(f => f.page === pageNum).forEach(f => {
+    const existing = EXISTING[f.id] || '';
+    const lbl = document.createElement('div');
+    lbl.className = `field-label-hint ${f.field_type}`;
+    lbl.textContent = f.label + (f.required ? ' *' : '');
+    lbl.style.left = (f.x_pct / 100 * wW) + 'px';
+    lbl.style.top = ((f.y_pct / 100 * wH) - 18) + 'px';
+    wrap.appendChild(lbl);
+
+    let input;
+    if (f.field_type === 'checkbox') {
+      input = document.createElement('input');
+      input.type = 'checkbox';
+      if (existing === 'true' || existing === '1') input.checked = true;
+    } else {
+      input = f.field_type === 'date' ? document.createElement('input') : document.createElement('input');
+      input.type = f.field_type === 'date' ? 'date' : 'text';
+      input.value = existing;
+      if (f.field_type === 'signature') input.placeholder = 'Type your full name';
+    }
+    input.name = `field_${f.id}`;
+    input.id = `field_${f.id}`;
+    input.className = `field-overlay-input ${f.field_type}`;
+    if (f.required && f.field_type !== 'checkbox') input.required = true;
+    input.style.left = (f.x_pct / 100 * wW) + 'px';
+    input.style.top = (f.y_pct / 100 * wH) + 'px';
+    input.style.width = (f.w_pct / 100 * wW) + 'px';
+    input.style.height = (f.h_pct / 100 * wH) + 'px';
+    input.addEventListener('input', () => updateDot(f.id, input));
+    wrap.appendChild(input);
+    updateDot(f.id, input);
+  });
+}
+
+function updateDot(fid, input) {
+  const dot = document.getElementById('dot-' + fid);
+  if (!dot) return;
+  const filled = input.type === 'checkbox' ? input.checked : input.value.trim() !== '';
+  dot.classList.toggle('filled', filled);
+}
+
+window.scrollToField = function(fid) {
+  const field = FIELDS.find(f => f.id === fid);
+  if (!field) return;
+  if (field.page !== currentPage) {
+    if (pageCanvases[currentPage]) pageCanvases[currentPage].parentElement.style.display = 'none';
+    currentPage = field.page;
+    updatePageNav();
+    renderPage(currentPage).then(() => {
+      const el = document.getElementById('field_' + fid);
+      if (el) el.focus();
+    });
+  } else {
+    const el = document.getElementById('field_' + fid);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
+  }
+};
+
+{% if doc.filename %}
+loadPDF();
+{% else %}
+document.getElementById('pages-wrap').innerHTML = '<p style="padding:30px; color:var(--text-muted); text-align:center;">No PDF file attached to this document.</p>';
+{% endif %}
+</script>
+{% endblock %}
