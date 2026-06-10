@@ -21,6 +21,7 @@ from ..helpers import (
     month_weeks,
     qualifies,
     refresh_shift_status,
+    remove_employee_from_future_shifts,
     resolved_details,
 )
 from ..templating import flash, templates
@@ -807,3 +808,173 @@ def approve_timesheet(
         db.commit()
         flash(request, f"Timesheet approved — {t.hours:.2f} hours for {t.assignment.employee.name}.")
     return RedirectResponse("/client/timesheets", status_code=303)
+
+
+# ---------- A-List & Block List (Crew Management) ----------
+
+@router.get("/crew")
+def crew_management(
+    request: Request,
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    company = user.company
+    alist_entries = (
+        db.query(models.AList)
+        .filter_by(client_id=company.id)
+        .all()
+    )
+    blocklist_entries = (
+        db.query(models.BlockList)
+        .filter_by(client_id=company.id)
+        .all()
+    )
+    # Fetch active employees for dropdown
+    employees = (
+        db.query(models.User)
+        .filter_by(role="employee", status="active")
+        .order_by(models.User.first_name, models.User.last_name)
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "client/crew.html",
+        ctx(
+            request,
+            user,
+            db,
+            alist=alist_entries,
+            blocklist=blocklist_entries,
+            employees=employees,
+        ),
+    )
+
+
+@router.post("/crew/alist")
+def add_to_alist(
+    request: Request,
+    employee_id: int = Form(...),
+    location_id: int = Form(0),
+    notes: str = Form(""),
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    company = user.company
+    # Validate employee exists and is active
+    emp = db.query(models.User).filter_by(id=employee_id, role="employee", status="active").first()
+    if not emp:
+        flash(request, "Employee not found or inactive.", "error")
+        return RedirectResponse("/client/crew", status_code=303)
+
+    loc_id = location_id if location_id > 0 else None
+    if loc_id:
+        loc = db.get(models.Location, loc_id)
+        if not loc or loc.client_id != company.id:
+            flash(request, "Invalid location.", "error")
+            return RedirectResponse("/client/crew", status_code=303)
+
+    # Check duplicate
+    exists = (
+        db.query(models.AList)
+        .filter_by(employee_id=employee_id, client_id=company.id, location_id=loc_id)
+        .first()
+    )
+    if exists:
+        flash(request, f"{emp.name} is already on the A-List for this location/client.", "warning")
+    else:
+        entry = models.AList(
+            employee_id=employee_id,
+            client_id=company.id,
+            location_id=loc_id,
+            notes=notes.strip() or None,
+        )
+        db.add(entry)
+        db.commit()
+        loc_name = loc.name if loc_id else "Client-wide"
+        flash(request, f"Added {emp.name} to A-List ({loc_name}).")
+    return RedirectResponse("/client/crew", status_code=303)
+
+
+@router.post("/crew/alist/{entry_id}/delete")
+def delete_from_alist(
+    entry_id: int,
+    request: Request,
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    entry = db.get(models.AList, entry_id)
+    if not entry or entry.client_id != user.client_id:
+        flash(request, "Entry not found.", "error")
+    else:
+        name = entry.employee.name
+        db.delete(entry)
+        db.commit()
+        flash(request, f"Removed {name} from A-List.")
+    return RedirectResponse("/client/crew", status_code=303)
+
+
+@router.post("/crew/blocklist")
+def add_to_blocklist(
+    request: Request,
+    employee_id: int = Form(...),
+    location_id: int = Form(0),
+    reason: str = Form(""),
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    company = user.company
+    emp = db.query(models.User).filter_by(id=employee_id, role="employee", status="active").first()
+    if not emp:
+        flash(request, "Employee not found or inactive.", "error")
+        return RedirectResponse("/client/crew", status_code=303)
+
+    loc_id = location_id if location_id > 0 else None
+    if loc_id:
+        loc = db.get(models.Location, loc_id)
+        if not loc or loc.client_id != company.id:
+            flash(request, "Invalid location.", "error")
+            return RedirectResponse("/client/crew", status_code=303)
+
+    # Check duplicate
+    exists = (
+        db.query(models.BlockList)
+        .filter_by(employee_id=employee_id, client_id=company.id, location_id=loc_id)
+        .first()
+    )
+    if exists:
+        flash(request, f"{emp.name} is already blocked for this location/client.", "warning")
+    else:
+        entry = models.BlockList(
+            employee_id=employee_id,
+            client_id=company.id,
+            location_id=loc_id,
+            reason=reason.strip() or None,
+        )
+        db.add(entry)
+        db.commit()
+
+        # Remove from any future shifts at this client/location
+        remove_employee_from_future_shifts(db, employee_id, company.id, loc_id)
+        db.commit()
+
+        loc_name = loc.name if loc_id else "Client-wide"
+        flash(request, f"Blocked {emp.name} ({loc_name}) and removed from any future shifts.")
+    return RedirectResponse("/client/crew", status_code=303)
+
+
+@router.post("/crew/blocklist/{entry_id}/delete")
+def delete_from_blocklist(
+    entry_id: int,
+    request: Request,
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    entry = db.get(models.BlockList, entry_id)
+    if not entry or entry.client_id != user.client_id:
+        flash(request, "Entry not found.", "error")
+    else:
+        name = entry.employee.name
+        db.delete(entry)
+        db.commit()
+        flash(request, f"Removed {name} from Block List.")
+    return RedirectResponse("/client/crew", status_code=303)

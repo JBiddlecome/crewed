@@ -91,6 +91,8 @@ def profile(
         .all()
     )
     certifications = db.query(models.Certification).order_by(models.Certification.name).all()
+    alist_entries = db.query(models.AList).filter_by(employee_id=user.id).all()
+    blocklist_entries = db.query(models.BlockList).filter_by(employee_id=user.id).all()
     return templates.TemplateResponse(
         request,
         "employee/profile.html",
@@ -101,6 +103,8 @@ def profile(
             "states": US_STATES,
             "today": date.today(),
             "unread": unread_count(db, user),
+            "alist": alist_entries,
+            "blocklist": blocklist_entries,
         },
     )
 

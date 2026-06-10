@@ -275,3 +275,33 @@ class Message(Base):
     recipient = relationship("User", foreign_keys=[recipient_id])
     shift = relationship("Shift")
     location = relationship("Location")
+
+
+class BlockList(Base):
+    __tablename__ = "block_list"
+    __table_args__ = (UniqueConstraint("employee_id", "client_id", "location_id"),)
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("client_company.id"), nullable=False)
+    location_id = Column(Integer, ForeignKey("location.id"), nullable=True)
+    reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    employee = relationship("User", foreign_keys=[employee_id])
+    client = relationship("ClientCompany")
+    location = relationship("Location")
+
+
+class AList(Base):
+    __tablename__ = "a_list"
+    __table_args__ = (UniqueConstraint("employee_id", "client_id", "location_id"),)
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("client_company.id"), nullable=False)
+    location_id = Column(Integer, ForeignKey("location.id"), nullable=True)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    employee = relationship("User", foreign_keys=[employee_id])
+    client = relationship("ClientCompany")
+    location = relationship("Location")

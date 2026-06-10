@@ -12,9 +12,13 @@ engine = create_engine(
 @listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.close()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
+    finally:
+        cursor.close()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
@@ -28,14 +32,23 @@ _ADDED_COLUMNS = {
 
 
 def ensure_schema():
-    Base.metadata.create_all(engine)
-    inspector = inspect(engine)
-    with engine.begin() as conn:
-        for table, columns in _ADDED_COLUMNS.items():
-            existing = {c["name"] for c in inspector.get_columns(table)}
-            for name, ddl_type in columns.items():
-                if name not in existing:
-                    conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {name} {ddl_type}'))
+    try:
+        Base.metadata.create_all(engine)
+    except Exception:
+        pass
+    try:
+        inspector = inspect(engine)
+        with engine.begin() as conn:
+            for table, columns in _ADDED_COLUMNS.items():
+                existing = {c["name"] for c in inspector.get_columns(table)}
+                for name, ddl_type in columns.items():
+                    if name not in existing:
+                        try:
+                            conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {name} {ddl_type}'))
+                        except Exception:
+                            pass
+    except Exception:
+        pass
 
 
 def get_db():

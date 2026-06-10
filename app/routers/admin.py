@@ -12,6 +12,7 @@ from ..helpers import (
     effective_markup,
     get_setting,
     min_wage_for_state,
+    remove_employee_from_future_shifts,
     set_setting,
 )
 from ..templating import flash, templates
@@ -98,6 +99,14 @@ def client_detail(
         .limit(15)
         .all()
     )
+    alist_entries = db.query(models.AList).filter_by(client_id=company.id).all()
+    blocklist_entries = db.query(models.BlockList).filter_by(client_id=company.id).all()
+    employees = (
+        db.query(models.User)
+        .filter_by(role="employee", status="active")
+        .order_by(models.User.first_name, models.User.last_name)
+        .all()
+    )
     return templates.TemplateResponse(
         request,
         "admin/client_detail.html",
@@ -109,6 +118,9 @@ def client_detail(
             "global_markup": get_setting(db, "markup_percent", "55"),
             "wage": min_wage_for_state,
             "db": db,
+            "alist": alist_entries,
+            "blocklist": blocklist_entries,
+            "employees": employees,
         },
     )
 
@@ -366,3 +378,141 @@ def shifts(
         "admin/shifts.html",
         {"user": user, "upcoming": upcoming, "past": past},
     )
+
+
+# ---------- Client Crew Lists (Admin) ----------
+
+@router.post("/clients/{client_id}/crew/alist")
+def admin_add_to_alist(
+    client_id: int,
+    request: Request,
+    employee_id: int = Form(...),
+    location_id: int = Form(0),
+    notes: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+
+    emp = db.query(models.User).filter_by(id=employee_id, role="employee", status="active").first()
+    if not emp:
+        flash(request, "Employee not found or inactive.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+    loc_id = location_id if location_id > 0 else None
+    if loc_id:
+        loc = db.get(models.Location, loc_id)
+        if not loc or loc.client_id != company.id:
+            flash(request, "Invalid location.", "error")
+            return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+    exists = (
+        db.query(models.AList)
+        .filter_by(employee_id=employee_id, client_id=company.id, location_id=loc_id)
+        .first()
+    )
+    if exists:
+        flash(request, f"{emp.name} is already on the A-List for this location.", "warning")
+    else:
+        entry = models.AList(
+            employee_id=employee_id,
+            client_id=company.id,
+            location_id=loc_id,
+            notes=notes.strip() or None,
+        )
+        db.add(entry)
+        db.commit()
+        flash(request, f"Added {emp.name} to A-List.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/crew/alist/{entry_id}/delete")
+def admin_delete_from_alist(
+    client_id: int,
+    entry_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    entry = db.get(models.AList, entry_id)
+    if not entry or entry.client_id != client_id:
+        flash(request, "Entry not found.", "error")
+    else:
+        name = entry.employee.name
+        db.delete(entry)
+        db.commit()
+        flash(request, f"Removed {name} from A-List.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/crew/blocklist")
+def admin_add_to_blocklist(
+    client_id: int,
+    request: Request,
+    employee_id: int = Form(...),
+    location_id: int = Form(0),
+    reason: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+
+    emp = db.query(models.User).filter_by(id=employee_id, role="employee", status="active").first()
+    if not emp:
+        flash(request, "Employee not found or inactive.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+    loc_id = location_id if location_id > 0 else None
+    if loc_id:
+        loc = db.get(models.Location, loc_id)
+        if not loc or loc.client_id != company.id:
+            flash(request, "Invalid location.", "error")
+            return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+    exists = (
+        db.query(models.BlockList)
+        .filter_by(employee_id=employee_id, client_id=company.id, location_id=loc_id)
+        .first()
+    )
+    if exists:
+        flash(request, f"{emp.name} is already blocked for this location.", "warning")
+    else:
+        entry = models.BlockList(
+            employee_id=employee_id,
+            client_id=company.id,
+            location_id=loc_id,
+            reason=reason.strip() or None,
+        )
+        db.add(entry)
+        db.commit()
+
+        remove_employee_from_future_shifts(db, employee_id, company.id, loc_id)
+        db.commit()
+
+        flash(request, f"Blocked {emp.name} and cancelled any future shifts.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/crew/blocklist/{entry_id}/delete")
+def admin_delete_from_blocklist(
+    client_id: int,
+    entry_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    entry = db.get(models.BlockList, entry_id)
+    if not entry or entry.client_id != client_id:
+        flash(request, "Entry not found.", "error")
+    else:
+        name = entry.employee.name
+        db.delete(entry)
+        db.commit()
+        flash(request, f"Removed {name} from Block List.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)

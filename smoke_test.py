@@ -201,6 +201,55 @@ check("Client pages render", all(
               "/client/shifts/1", "/client/timesheets", day_url]
 ))
 
+# ---- A-List & Block List Tests ----
+# Client pages for A-List & Block List render
+r = client_http.get("/client/crew")
+check("Crew management page renders", r.status_code == 200 and "A-List" in r.text)
+
+# Add worker to A-List
+r = client_http.post("/client/crew/alist", data={"employee_id": "3", "location_id": "0", "notes": "Top tier"})
+check("Worker added to A-List", r.status_code == 200 and "Top tier" in r.text)
+
+# Post another future shift for next week (next week's date)
+next_week = (date.today() + timedelta(days=7)).isoformat()
+r = client_http.post("/client/shifts/new", data={
+    "location_id": "1", "client_position_id": "1", "shift_date": next_week,
+    "start_time": "12:00", "end_time": "18:00", "headcount": "1",
+    "pay_rate": "22.00", "notes": "Future shift for block test",
+})
+check("Future shift posted", r.status_code == 200 and "Shift posted" in r.text)
+
+# Worker applies to future shift (Shift ID 2)
+r = worker_http.post("/employee/shifts/2/apply")
+check("Worker applies to future shift", "Applied to" in r.text)
+
+# Client confirms worker for future shift
+r = client_http.post("/client/assignments/2/confirm")
+check("Client confirms worker for future shift", "confirmed" in r.text)
+
+# Add worker to Block List (this should cancel their confirmed future shift)
+r = client_http.post("/client/crew/blocklist", data={"employee_id": "3", "location_id": "0", "reason": "No longer welcome"})
+check("Worker blocked", r.status_code == 200 and "No longer welcome" in r.text)
+
+# Check that the future shift assignment status is now cancelled
+r = worker_http.get("/employee/myshifts")
+check("Future assignment auto-cancelled by block list", "cancelled" in r.text.lower())
+
+# Worker tries to apply to a third shift (Shift ID 3)
+r = client_http.post("/client/shifts/new", data={
+    "location_id": "1", "client_position_id": "1", "shift_date": next_week,
+    "start_time": "18:00", "end_time": "22:00", "headcount": "1",
+    "pay_rate": "22.00", "notes": "Third shift",
+})
+check("Third shift posted", r.status_code == 200)
+
+r = worker_http.post("/employee/shifts/3/apply")
+check("Blocked worker prevented from applying", "block list" in r.text.lower())
+
+# Remove from Block List (unblock)
+r = client_http.post("/client/crew/blocklist/1/delete")
+check("Worker unblocked", r.status_code == 200)
+
 # Auth guard: logged-out user is redirected
 anon = TestClient(app, follow_redirects=False)
 r = anon.get("/client/shifts")

@@ -58,6 +58,20 @@ def min_wage_for_state(db: Session, state: str) -> float:
 def qualifies(db: Session, user: models.User, shift: models.Shift):
     """Whether an employee can work a shift. Returns (ok, reasons)."""
     reasons = []
+
+    # Check Block List
+    blocked = (
+        db.query(models.BlockList)
+        .filter(
+            models.BlockList.employee_id == user.id,
+            models.BlockList.client_id == shift.client_id,
+            (models.BlockList.location_id == None) | (models.BlockList.location_id == shift.location_id),
+        )
+        .first()
+    )
+    if blocked:
+        reasons.append("You are on the block list for this client/location")
+
     position_ids = {p.position_id for p in user.positions}
     if shift.position_id not in position_ids:
         reasons.append(f"{shift.position.name} is not on your profile")
@@ -149,3 +163,25 @@ def unread_count(db: Session, user: models.User) -> int:
         .filter_by(recipient_id=user.id, read_at=None)
         .count()
     )
+
+
+def remove_employee_from_future_shifts(db: Session, employee_id: int, client_id: int, location_id: int = None):
+    """Cancel all active/requested future assignments for an employee at a client/location."""
+    today = date.today()
+    query = (
+        db.query(models.Assignment)
+        .join(models.Shift)
+        .filter(
+            models.Assignment.employee_id == employee_id,
+            models.Shift.client_id == client_id,
+            models.Shift.shift_date >= today,
+            models.Assignment.status.in_(["requested", "confirmed"]),
+        )
+    )
+    if location_id is not None:
+        query = query.filter(models.Shift.location_id == location_id)
+
+    future_assignments = query.all()
+    for a in future_assignments:
+        a.status = "cancelled"
+        refresh_shift_status(db, a.shift)

@@ -40,36 +40,56 @@ def run():
     db = SessionLocal()
     try:
         if not db.query(User).filter_by(role="admin").first():
-            db.add(
-                User(
-                    email=ADMIN_EMAIL,
-                    password_hash=hash_password(ADMIN_PASSWORD),
-                    first_name="Crewed",
-                    last_name="Admin",
-                    role="admin",
-                    status="active",
+            try:
+                db.add(
+                    User(
+                        email=ADMIN_EMAIL,
+                        password_hash=hash_password(ADMIN_PASSWORD),
+                        first_name="Crewed",
+                        last_name="Admin",
+                        role="admin",
+                        status="active",
+                    )
                 )
-            )
-            print(f"[seed] Created admin account: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
+                db.commit()
+                print(f"[seed] Created admin account: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
+            except Exception:
+                db.rollback()
 
-        existing_positions = {p.name for p in db.query(Position).all()}
-        for name in POSITIONS:
-            if name not in existing_positions:
-                db.add(Position(name=name))
+        try:
+            existing_positions = {p.name for p in db.query(Position).all()}
+            for name in POSITIONS:
+                if name not in existing_positions:
+                    db.add(Position(name=name))
+            db.commit()
+        except Exception:
+            db.rollback()
 
-        existing_certs = {c.name for c in db.query(Certification).all()}
-        for name in CERTIFICATIONS:
-            if name not in existing_certs:
-                db.add(Certification(name=name))
+        try:
+            existing_certs = {c.name for c in db.query(Certification).all()}
+            for name in CERTIFICATIONS:
+                if name not in existing_certs:
+                    db.add(Certification(name=name))
+            db.commit()
+        except Exception:
+            db.rollback()
 
-        existing_states = {m.state for m in db.query(MinWage).all()}
-        for state, rate in MIN_WAGES.items():
-            if state not in existing_states:
-                db.add(MinWage(state=state, rate=rate))
+        try:
+            existing_states = {m.state for m in db.query(MinWage).all()}
+            for state, rate in MIN_WAGES.items():
+                if state not in existing_states:
+                    db.add(MinWage(state=state, rate=rate))
+            db.commit()
+        except Exception:
+            db.rollback()
 
-        if not db.get(Setting, "markup_percent"):
-            db.add(Setting(key="markup_percent", value="55"))
-
-        db.commit()
+        try:
+            if not db.get(Setting, "markup_percent"):
+                db.add(Setting(key="markup_percent", value="55"))
+                db.commit()
+        except Exception:
+            db.rollback()
+    except Exception:
+        db.rollback()
     finally:
         db.close()

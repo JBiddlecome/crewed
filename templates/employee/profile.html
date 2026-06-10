@@ -74,32 +74,88 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Contact info</h2>
-    <form method="post" action="/employee/profile/info">
-      <div class="field">
-        <label>Phone</label>
-        <input name="phone" type="tel" value="{{ user.phone or '' }}">
-      </div>
-      <div class="form-row">
+  <div>
+    <div class="card">
+      <h2>Contact info</h2>
+      <form method="post" action="/employee/profile/info">
         <div class="field">
-          <label>City</label>
-          <input name="city" value="{{ user.city or '' }}">
+          <label>Phone</label>
+          <input name="phone" type="tel" value="{{ user.phone or '' }}">
         </div>
-        <div class="field">
-          <label>State</label>
-          <select name="state">
-            <option value="">—</option>
-            {% for code, name in states %}<option value="{{ code }}" {{ 'selected' if user.state == code }}>{{ name }}</option>{% endfor %}
-          </select>
+        <div class="form-row">
+          <div class="field">
+            <label>City</label>
+            <input name="city" value="{{ user.city or '' }}">
+          </div>
+          <div class="field">
+            <label>State</label>
+            <select name="state">
+              <option value="">—</option>
+              {% for code, name in states %}<option value="{{ code }}" {{ 'selected' if user.state == code }}>{{ name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>ZIP</label>
+            <input name="zip" value="{{ user.zip or '' }}">
+          </div>
         </div>
-        <div class="field">
-          <label>ZIP</label>
-          <input name="zip" value="{{ user.zip or '' }}">
-        </div>
-      </div>
-      <button class="btn" type="submit">Save</button>
-    </form>
+        <button class="btn" type="submit">Save</button>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Preferred &amp; Block List Status</h2>
+      <p style="color:var(--muted); font-size:.85rem; margin-bottom:15px">
+        Your status on client lists determines shift preferences and exclusions.
+      </p>
+
+      <h3 style="font-size:.9rem; margin-top:14px; margin-bottom:8px">A-List (Preferred)</h3>
+      {% if alist %}
+        <table class="table" style="font-size:.85rem">
+          <thead><tr><th>Client</th><th>Scope</th></tr></thead>
+          <tbody>
+            {% for entry in alist %}
+            <tr>
+              <td class="strong">{{ entry.client.name }}</td>
+              <td>
+                {% if entry.location %}
+                  <span class="badge" style="background-color: var(--seafoam-tint); color: var(--seafoam-deep)">{{ entry.location.name }}</span>
+                {% else %}
+                  <span class="badge" style="background-color: var(--line); color: var(--muted)">Client-wide</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color:var(--muted); font-size:.85rem">You are not currently on any client's A-List.</p>
+      {% endif %}
+
+      <h3 style="font-size:.9rem; margin-top:20px; margin-bottom:8px">Block List</h3>
+      {% if blocklist %}
+        <table class="table" style="font-size:.85rem">
+          <thead><tr><th>Client</th><th>Scope</th><th>Reason</th></tr></thead>
+          <tbody>
+            {% for entry in blocklist %}
+            <tr>
+              <td class="strong">{{ entry.client.name }}</td>
+              <td>
+                {% if entry.location %}
+                  <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">{{ entry.location.name }}</span>
+                {% else %}
+                  <span class="badge" style="background-color: var(--coral-tint); color: var(--coral-dark)">Client-wide</span>
+                {% endif %}
+              </td>
+              <td style="color:var(--muted)">{{ entry.reason or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color:var(--muted); font-size:.85rem">You are not on any client's Block List.</p>
+      {% endif %}
+    </div>
   </div>
 </div>
 
