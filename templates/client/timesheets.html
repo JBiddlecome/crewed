@@ -16,11 +16,29 @@
         <td class="strong">{{ t.assignment.employee.name }}</td>
         <td>{{ s.position.name }} · {{ s.location.name }}</td>
         <td>{{ s.shift_date|dt }}</td>
-        <td>{{ t.start_time }}–{{ t.end_time }}{% if t.break_minutes %} ({{ t.break_minutes }}m break){% endif %}</td>
-        <td class="strong">{{ '%.2f' % t.hours }}</td>
-        <td>{{ (t.hours * s.bill_rate)|money }}</td>
-        <td class="actions">
-          <form method="post" action="/client/timesheets/{{ t.id }}/approve">
+        <td style="font-size: 0.9rem;">
+          <div class="strong">{{ t.start_time }}–{{ t.end_time }}</div>
+          {% if t.meal_start_time %}<div style="color:var(--muted); font-size:0.8rem">Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }} ({{ t.employee_break_minutes }}m break)</div>{% endif %}
+          <div style="color:var(--muted); font-size:0.8rem">{{ '%.2f' % t.employee_hours }} hrs</div>
+        </td>
+        <td colspan="3">
+          <form method="post" action="/client/timesheets/{{ t.id }}/approve" style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin: 0;">
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <input type="time" name="start_time" value="{{ t.start_time }}" required style="padding: 4px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
+              <span>–</span>
+              <input type="time" name="end_time" value="{{ t.end_time }}" required style="padding: 4px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; background: var(--coral-tint); border: 1px solid var(--coral); border-radius: 6px; padding: 4px 8px;">
+              <span style="font-size: 0.75rem; font-weight:600; color: var(--coral-dark);">Meal In:</span>
+              <input type="time" name="meal_start_time" id="meal_start_{{ t.id }}" value="{{ t.meal_start_time or '12:00' }}" style="padding: 2px; font-size: 0.8rem; border: 1px solid var(--line); border-radius: 4px;">
+              <span style="font-size: 0.75rem; font-weight:600; color: var(--coral-dark);">Out:</span>
+              <input type="time" name="meal_end_time" id="meal_end_{{ t.id }}" value="{{ t.meal_end_time or '12:30' }}" style="padding: 2px; font-size: 0.8rem; border: 1px solid var(--line); border-radius: 4px;">
+              <label style="font-size: 0.8rem; cursor:pointer; display:inline-flex; align-items:center; gap:2px">
+                <input type="checkbox" name="no_break" {% if not t.meal_start_time %}checked{% endif %} onchange="toggleMealInputs(this, '{{ t.id }}')">
+                No break
+              </label>
+            </div>
+            <input type="text" name="dispute_reason" placeholder="Dispute reason (optional)" style="width: 160px; padding: 4px 6px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
             <button class="btn btn-sm" type="submit">Approve</button>
           </form>
         </td>
@@ -37,16 +55,78 @@
 <div class="card">
   <h2>Approved</h2>
   <table class="table">
-    <thead><tr><th>Crew</th><th>Shift</th><th>Date</th><th>Hours</th><th>Billed</th></tr></thead>
+    <thead><tr><th>Crew</th><th>Shift</th><th>Date</th><th>Claimed</th><th>Billing Approved</th><th>Hours</th><th>Billed Amount</th><th class="actions"></th></tr></thead>
     <tbody>
       {% for t in approved %}
       {% set s = t.assignment.shift %}
       <tr>
-        <td>{{ t.assignment.employee.name }}</td>
+        <td class="strong">{{ t.assignment.employee.name }}</td>
         <td>{{ s.position.name }} · {{ s.location.name }}</td>
         <td>{{ s.shift_date|dt }}</td>
-        <td>{{ '%.2f' % t.hours }}</td>
-        <td>{{ (t.hours * s.bill_rate)|money }}</td>
+        <td style="color:var(--muted); font-size: 0.85rem">
+          {{ t.start_time }}–{{ t.end_time }}<br>
+          {% if t.meal_start_time %}Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }}{% else %}No break{% endif %}
+        </td>
+        <td>
+          {% if t.is_disputed %}
+            <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">Disputed</span>
+            <strong>{{ t.billing_start_time }}–{{ t.billing_end_time }}</strong>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">
+              Meal: {% if t.billing_meal_start_time %}{{ t.billing_meal_start_time }}–{{ t.billing_meal_end_time }}{% else %}No break{% endif %}
+            </div>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">Reason: {{ t.dispute_reason or '—' }}</div>
+          {% else %}
+            <span style="color:var(--muted)">Same as claimed</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.is_disputed %}
+            <div style="font-size:0.8rem; color:var(--muted)">Pay: {{ '%.2f' % t.employee_hours }} hrs</div>
+            <div style="font-weight:600; color:var(--amber-deep)">Bill: {{ '%.2f' % t.billing_hours }} hrs</div>
+          {% else %}
+            <strong>{{ '%.2f' % t.hours }} hrs</strong>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.is_disputed %}
+            <div style="font-size:0.8rem; color:var(--muted)">Pay: {{ (t.employee_hours * s.pay_rate)|money }}</div>
+            <div style="font-weight:600; color:var(--amber-deep)">Bill: {{ (t.billing_hours * s.bill_rate)|money }}</div>
+          {% else %}
+            <strong>{{ (t.hours * s.bill_rate)|money }}</strong>
+          {% endif %}
+        </td>
+        <td>
+          {% if not t.is_closed %}
+            <button class="btn btn-ghost btn-sm" onclick="toggleEditForm('{{ t.id }}')">Edit Billing</button>
+          {% else %}
+            <span class="badge" style="background-color: var(--line); color: var(--muted)">Locked</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr id="edit_row_{{ t.id }}" style="display:none; background-color:#fcfcfc; border-bottom: 2px solid var(--line)">
+        <td colspan="8" style="padding: 12px 24px">
+          <form method="post" action="/client/timesheets/{{ t.id }}/edit" style="display: flex; gap: 12px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin: 0;">
+            <strong style="font-size:0.9rem; color:var(--plum-ink)">Adjust Billing Hours:</strong>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <input type="time" name="start_time" value="{{ t.billing_start_time or t.start_time }}" required style="padding: 4px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
+              <span>–</span>
+              <input type="time" name="end_time" value="{{ t.billing_end_time or t.end_time }}" required style="padding: 4px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; background: var(--coral-tint); border: 1px solid var(--coral); border-radius: 6px; padding: 4px 8px;">
+              <span style="font-size: 0.75rem; font-weight:600; color: var(--coral-dark);">Meal In:</span>
+              <input type="time" name="meal_start_time" id="edit_meal_start_{{ t.id }}" value="{{ t.billing_meal_start_time or t.meal_start_time or '12:00' }}" style="padding: 2px; font-size: 0.8rem; border: 1px solid var(--line); border-radius: 4px;">
+              <span style="font-size: 0.75rem; font-weight:600; color: var(--coral-dark);">Out:</span>
+              <input type="time" name="meal_end_time" id="edit_meal_end_{{ t.id }}" value="{{ t.billing_meal_end_time or t.meal_end_time or '12:30' }}" style="padding: 2px; font-size: 0.8rem; border: 1px solid var(--line); border-radius: 4px;">
+              <label style="font-size: 0.8rem; cursor:pointer; display:inline-flex; align-items:center; gap:2px">
+                <input type="checkbox" id="edit_no_break_chk_{{ t.id }}" name="no_break" {% if not t.billing_meal_start_time and not t.meal_start_time %}checked{% endif %} onchange="toggleMealInputs(this, 'edit_' + {{ t.id }})">
+                No break
+              </label>
+            </div>
+            <input type="text" name="dispute_reason" value="{{ t.dispute_reason or '' }}" placeholder="Reason for change" style="width: 180px; padding: 4px 6px; font-size: 0.85rem; border: 1px solid var(--line); border-radius: 4px;">
+            <button class="btn btn-sm" type="submit">Save</button>
+            <button class="btn btn-sm btn-ghost" type="button" onclick="toggleEditForm('{{ t.id }}')">Cancel</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -54,4 +134,53 @@
 </div>
 {% endif %}
 
+<script>
+function toggleMealInputs(chk, id) {
+  // id could be like "1" or "edit_1"
+  var start = document.getElementById('meal_start_' + id);
+  var end = document.getElementById('meal_end_' + id);
+  if (!start) {
+    // try edit version
+    start = document.getElementById(id.startsWith('edit_') ? 'edit_meal_start_' + id.substring(5) : 'meal_start_' + id);
+    end = document.getElementById(id.startsWith('edit_') ? 'edit_meal_end_' + id.substring(5) : 'meal_end_' + id);
+  }
+  if (chk.checked) {
+    start.disabled = true;
+    end.disabled = true;
+    start.required = false;
+    end.required = false;
+    start.style.opacity = '0.5';
+    end.style.opacity = '0.5';
+  } else {
+    start.disabled = false;
+    end.disabled = false;
+    start.required = true;
+    end.required = true;
+    start.style.opacity = '1';
+    end.style.opacity = '1';
+  }
+}
+
+function toggleEditForm(id) {
+  var row = document.getElementById('edit_row_' + id);
+  if (row.style.display === 'none') {
+    row.style.display = 'table-row';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  // Initialize submitted form toggles
+  document.querySelectorAll('input[name="no_break"]').forEach(function(chk) {
+    var onchangeAttr = chk.getAttribute('onchange');
+    if (onchangeAttr && onchangeAttr.includes('toggleMealInputs')) {
+      var id = onchangeAttr.match(/'([^']+)'/)[1];
+      toggleMealInputs(chk, id);
+    }
+  });
+});
+</script>
+
 {% endblock %}
+

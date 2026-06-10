@@ -11,6 +11,150 @@
 </head>
 <body class="{% block bodyclass %}app{% endblock %}">
 
+{% if blocked_timesheet %}
+<div class="hard-block-overlay">
+  <div class="hard-block-modal">
+    <h2>Submit Missing Timesheet</h2>
+    <p class="desc">You have a pending timesheet for your past shift. You must submit your hours for this shift before you can continue using the application.</p>
+    
+    <div class="shift-details">
+      <strong>{{ blocked_timesheet.shift.position.name }}</strong>
+      <span>{{ blocked_timesheet.shift.company.name }}</span>
+      <span class="date">{{ blocked_timesheet.shift.shift_date.strftime('%A, %b %d, %Y') }} · {{ blocked_timesheet.shift.start_time }}–{{ blocked_timesheet.shift.end_time }}</span>
+    </div>
+    
+    <form method="post" action="/employee/timesheets/{{ blocked_timesheet.id }}/submit" class="block-form">
+      <div class="form-row">
+        <div class="field">
+          <label>Start Time</label>
+          <input type="time" name="start_time" value="{{ blocked_timesheet.shift.start_time }}" required>
+        </div>
+        <div class="field">
+          <label>End Time</label>
+          <input type="time" name="end_time" value="{{ blocked_timesheet.shift.end_time }}" required>
+        </div>
+      </div>
+      
+      <div class="meal-break-box">
+        <h3>Meal Break</h3>
+        <p class="hint-text">Please enter your exact meal break times. (Standard is 30 mins)</p>
+        <div class="form-row">
+          <div class="field">
+            <label>Meal In</label>
+            <input type="time" name="meal_start_time" id="modal_meal_start_time" value="12:00">
+          </div>
+          <div class="field">
+            <label>Meal Out</label>
+            <input type="time" name="meal_end_time" id="modal_meal_end_time" value="12:30">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label style="display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer">
+            <input type="checkbox" name="no_break" id="modal_no_break" onchange="toggleModalMealBreak(this)">
+            No break taken
+          </label>
+        </div>
+      </div>
+      
+      <button class="btn btn-block" type="submit" style="margin-top:20px">Submit Timesheet</button>
+    </form>
+  </div>
+</div>
+<script>
+  function toggleModalMealBreak(chk) {
+    var startInput = document.getElementById('modal_meal_start_time');
+    var endInput = document.getElementById('modal_meal_end_time');
+    if (chk.checked) {
+      startInput.disabled = true;
+      endInput.disabled = true;
+      startInput.required = false;
+      endInput.required = false;
+    } else {
+      startInput.disabled = false;
+      endInput.disabled = false;
+      startInput.required = true;
+      endInput.required = true;
+    }
+  }
+  // Run on load to set initial required state
+  document.addEventListener("DOMContentLoaded", function() {
+    toggleModalMealBreak(document.getElementById('modal_no_break'));
+  });
+</script>
+<style>
+  .hard-block-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(46, 38, 48, 0.95);
+    backdrop-filter: blur(8px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .hard-block-modal {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 500px;
+    padding: 30px;
+    animation: blockModalFadeIn 0.3s ease-out;
+  }
+  .hard-block-modal h2 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: #584052;
+  }
+  .hard-block-modal .desc {
+    font-size: 0.9rem;
+    color: #7d7283;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .shift-details {
+    background: #f7f4f1;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid #f87c50;
+  }
+  .shift-details strong {
+    display: block;
+    color: #2e2630;
+    font-size: 1.05rem;
+  }
+  .shift-details span {
+    display: block;
+    font-size: 0.85rem;
+    color: #7d7283;
+    margin-top: 2px;
+  }
+  .meal-break-box {
+    background: #fee7dd;
+    border: 1.5px solid #f87c50;
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 15px;
+  }
+  .meal-break-box h3 {
+    font-size: 0.95rem;
+    color: #e5602f;
+    margin: 0 0 4px;
+  }
+  .meal-break-box .hint-text {
+    font-size: 0.8rem;
+    color: #a54622;
+    margin: 0 0 10px;
+  }
+  @keyframes blockModalFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+</style>
+{% endif %}
+
 <div class="flashes">
   {% for f in get_flashed(request) %}
     <div class="flash flash-{{ f.category }}">{{ f.message }}</div>
@@ -36,6 +180,9 @@
         <a href="/admin/shifts" class="{{ 'active' if path.startswith('/admin/shifts') }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
           Shifts</a>
+        <a href="/admin/timesheets" class="{{ 'active' if path.startswith('/admin/timesheets') }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Timesheets</a>
         <a href="/admin/positions" class="{{ 'active' if path.startswith('/admin/positions') }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>
           Positions</a>

@@ -1,52 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Shifts — Crewed{% endblock %}
 {% block heading %}All Shifts{% endblock %}
+
+{% block actions %}
+<div class="toggle-pill-group">
+  <a href="/admin/shifts?view=client" class="toggle-pill-item {% if view == 'client' %}active{% endif %}">Group by Client</a>
+  <a href="/admin/shifts?view=location" class="toggle-pill-item {% if view == 'location' %}active{% endif %}">Group by Location</a>
+</div>
+{% endblock %}
+
 {% block content %}
 
+{% macro render_grouped_shifts(groups, section_name, empty_message) %}
 <div class="card">
-  <h2>Upcoming</h2>
-  {% if upcoming %}
-  <table class="table">
-    <thead><tr><th>Date</th><th>Client</th><th>Position</th><th>Location</th><th>Time</th><th>Pay</th><th>Bill</th><th>Staffed</th><th>Status</th></tr></thead>
-    <tbody>
-      {% for s in upcoming %}
-      <tr>
-        <td class="strong">{{ s.shift_date|dt }}</td>
-        <td><a href="/admin/clients/{{ s.client_id }}">{{ s.company.name }}</a></td>
-        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
-        <td>{{ s.location.name }} ({{ s.location.state }})</td>
-        <td>{{ s.start_time }}–{{ s.end_time }}</td>
-        <td>{{ s.pay_rate|money }}</td>
-        <td>{{ s.bill_rate|money }}</td>
-        <td>{{ s.confirmed_count }}/{{ s.headcount }}{% if s.requested_count %} <span class="chip chip-warn">{{ s.requested_count }} waiting</span>{% endif %}</td>
-        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h2>{{ section_name }}</h2>
+  {% if groups %}
+  <div class="accordion-container">
+    {% for item in groups %}
+      {% set is_client_view = (view == 'client') %}
+      {% set entity = item.client if is_client_view else item.location %}
+      
+      <div class="accordion-item">
+        <details>
+          <summary>
+            <div class="summary-left">
+              <span>
+                {% if is_client_view %}
+                  {{ entity.name }}
+                {% else %}
+                  {{ entity.name }} <span style="font-weight: 400; opacity: 0.75; font-size: 0.9em;">({{ entity.company.name }})</span>
+                {% endif %}
+              </span>
+            </div>
+            <div class="summary-right">
+              <span class="badge badge-open" style="text-transform: none; font-weight: 600;">{{ item.total_count }} shift{{ 's' if item.total_count != 1 else '' }}</span>
+              <span class="arrow">▼</span>
+            </div>
+          </summary>
+          
+          <div class="accordion-content">
+            <div class="sub-accordion-container">
+              {% for date_group in item.dates %}
+                <div class="sub-accordion-item">
+                  <details>
+                    <summary>
+                      <span>{{ date_group.date|dt }}</span>
+                      <span class="summary-right">
+                        <span class="badge" style="background: rgba(46, 38, 48, 0.08); color: var(--plum); font-weight: 600; text-transform: none;">{{ date_group.shifts|length }} shift{{ 's' if date_group.shifts|length != 1 else '' }}</span>
+                        <span class="arrow-sub">▼</span>
+                      </span>
+                    </summary>
+                    <div class="sub-accordion-content" style="overflow-x: auto;">
+                      <table class="table">
+                        <thead>
+                          <tr>
+                            {% if is_client_view %}
+                              <th>Location</th>
+                            {% else %}
+                              <th>Client</th>
+                            {% endif %}
+                            <th>Position</th>
+                            <th>Time</th>
+                            <th>Pay</th>
+                            <th>Bill</th>
+                            <th>Staffed</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for s in date_group.shifts %}
+                            <tr>
+                              {% if is_client_view %}
+                                <td>{{ s.location.name }} ({{ s.location.state }})</td>
+                              {% else %}
+                                <td class="strong"><a href="/admin/clients/{{ s.client_id }}">{{ s.company.name }}</a></td>
+                              {% endif %}
+                              <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+                              <td>{{ s.start_time }}–{{ s.end_time }}</td>
+                              <td>{{ s.pay_rate|money }}</td>
+                              <td>{{ s.bill_rate|money }}</td>
+                              <td>{{ s.confirmed_count }}/{{ s.headcount }}{% if s.requested_count %} <span class="chip chip-warn">{{ s.requested_count }} waiting</span>{% endif %}</td>
+                              <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </details>
+      </div>
+    {% endfor %}
+  </div>
   {% else %}
-  <div class="empty"><div class="mark">C</div><p>No upcoming shifts.</p></div>
+    <div class="empty"><div class="mark">C</div><p>{{ empty_message }}</p></div>
   {% endif %}
 </div>
+{% endmacro %}
 
-{% if past %}
-<div class="card">
-  <h2>Past</h2>
-  <table class="table">
-    <thead><tr><th>Date</th><th>Client</th><th>Position</th><th>Location</th><th>Status</th></tr></thead>
-    <tbody>
-      {% for s in past %}
-      <tr>
-        <td>{{ s.shift_date|dt }}</td>
-        <td>{{ s.company.name }}</td>
-        <td>{{ s.position.name }}</td>
-        <td>{{ s.location.name }}</td>
-        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+{{ render_grouped_shifts(upcoming, "Upcoming", "No upcoming shifts.") }}
+{{ render_grouped_shifts(past, "Past", "No past shifts.") }}
 
 {% endblock %}

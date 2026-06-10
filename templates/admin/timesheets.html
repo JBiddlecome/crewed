@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Timesheets Management — Admin — Crewed{% endblock %}
+{% block heading %}Timesheets Management{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>All Timesheets</h2>
+  {% if timesheets %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Employee</th>
+        <th>Client & Shift</th>
+        <th>Claimed (Pay)</th>
+        <th>Billing (Invoice)</th>
+        <th>Dispute</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in timesheets %}
+      {% set s = t.assignment.shift %}
+      <tr>
+        <td>{{ s.shift_date|dt }}</td>
+        <td class="strong">{{ t.assignment.employee.name }}</td>
+        <td>
+          <div class="strong">{{ s.company.name }}</div>
+          <div style="font-size:0.8rem; color:var(--muted)">{{ s.position.name }} at {{ s.location.name }}</div>
+        </td>
+        <td style="font-size:0.85rem">
+          {% if t.start_time %}
+            <strong>{{ t.start_time }}–{{ t.end_time }}</strong>
+            {% if t.meal_start_time %}<div style="color:var(--muted); font-size:0.75rem">Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }} ({{ t.employee_break_minutes }}m)</div>{% endif %}
+            <div style="font-weight:600; color:var(--plum-ink); margin-top:2px">{{ '%.2f' % t.employee_hours }} hrs</div>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td style="font-size:0.85rem">
+          {% if t.start_time %}
+            {% set start = t.billing_start_time or t.start_time %}
+            {% set end = t.billing_end_time or t.end_time %}
+            <strong>{{ start }}–{{ end }}</strong>
+            {% if t.billing_meal_start_time %}
+              <div style="color:var(--muted); font-size:0.75rem">Meal: {{ t.billing_meal_start_time }}–{{ t.billing_meal_end_time }} ({{ t.client_break_minutes }}m)</div>
+            {% elif t.meal_start_time and t.billing_break_minutes is none %}
+              <div style="color:var(--muted); font-size:0.75rem">Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }} ({{ t.employee_break_minutes }}m)</div>
+            {% endif %}
+            <div style="font-weight:600; color:var(--coral-dark); margin-top:2px">{{ '%.2f' % t.billing_hours }} hrs</div>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td style="font-size:0.85rem">
+          {% if t.is_disputed %}
+            <span class="badge" style="background-color:var(--amber-tint); color:var(--amber-deep)">Disputed</span>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">{{ t.dispute_reason or 'No reason provided' }}</div>
+          {% else %}
+            <span style="color:var(--muted)">No dispute</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+          {% if t.is_closed %}
+            <span class="badge" style="background-color:var(--plum-deep); color:#fff; margin-top:4px; display:inline-block">Closed</span>
+          {% else %}
+            <span class="badge font-weight:600" style="background-color:var(--seafoam-tint); color:var(--seafoam-deep); margin-top:4px; display:inline-block">Open</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="toggleAdminEditForm('{{ t.id }}')">Edit</button>
+            <form method="post" action="/admin/timesheets/{{ t.id }}/close">
+              <button class="btn btn-sm {% if t.is_closed %}btn-soft{% else %}btn-danger{% endif %}" type="submit">
+                {% if t.is_closed %}Unlock{% else %}Lock{% endif %}
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      
+      <!-- Admin Edit Form Row -->
+      <tr id="admin_edit_row_{{ t.id }}" style="display:none; background-color:#fcfcfc; border-bottom: 2px solid var(--line)">
+        <td colspan="8" style="padding: 20px 30px">
+          <form method="post" action="/admin/timesheets/{{ t.id }}/edit" style="display:flex; flex-direction:column; gap:16px">
+            <h3 style="font-size:1rem; margin:0">Edit Timesheet Details (Admin Override)</h3>
+            
+            <div class="grid grid-2" style="gap:20px">
+              <!-- Employee hours edit block -->
+              <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
+                <strong style="color:var(--plum-deep); display:block; margin-bottom:10px">1. Employee Claimed Hours (Pay)</strong>
+                <div class="form-row" style="display:flex; gap:12px; margin-bottom:12px">
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Start Time</label>
+                    <input type="time" name="start_time" value="{{ t.start_time or '09:00' }}" required>
+                  </div>
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">End Time</label>
+                    <input type="time" name="end_time" value="{{ t.end_time or '17:00' }}" required>
+                  </div>
+                </div>
+                <div class="form-row" style="display:flex; gap:12px; margin-bottom:8px">
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Meal Start</label>
+                    <input type="time" name="meal_start_time" id="admin_meal_start_{{ t.id }}" value="{{ t.meal_start_time or '12:00' }}">
+                  </div>
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Meal End</label>
+                    <input type="time" name="meal_end_time" id="admin_meal_end_{{ t.id }}" value="{{ t.meal_end_time or '12:30' }}">
+                  </div>
+                </div>
+                <div>
+                  <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; cursor:pointer">
+                    <input type="checkbox" name="no_break" {% if not t.meal_start_time %}checked{% endif %} onchange="toggleAdminMeal(this, '{{ t.id }}', false)">
+                    No break taken
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Billing hours edit block -->
+              <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
+                <strong style="color:var(--coral-dark); display:block; margin-bottom:10px">2. Client Billed Hours (Invoice)</strong>
+                <div class="form-row" style="display:flex; gap:12px; margin-bottom:12px">
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Billing Start</label>
+                    <input type="time" name="billing_start_time" value="{{ t.billing_start_time or t.start_time or '09:00' }}">
+                  </div>
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Billing End</label>
+                    <input type="time" name="billing_end_time" value="{{ t.billing_end_time or t.end_time or '17:00' }}">
+                  </div>
+                </div>
+                <div class="form-row" style="display:flex; gap:12px; margin-bottom:8px">
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Billing Meal Start</label>
+                    <input type="time" name="billing_meal_start_time" id="admin_billing_meal_start_{{ t.id }}" value="{{ t.billing_meal_start_time or t.meal_start_time or '12:00' }}">
+                  </div>
+                  <div class="field" style="margin:0; flex:1">
+                    <label style="font-size:0.75rem">Billing Meal End</label>
+                    <input type="time" name="billing_meal_end_time" id="admin_billing_meal_end_{{ t.id }}" value="{{ t.billing_meal_end_time or t.meal_end_time or '12:30' }}">
+                  </div>
+                </div>
+                <div>
+                  <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; cursor:pointer">
+                    <input type="checkbox" name="billing_no_break" {% if not t.billing_meal_start_time and (t.billing_break_minutes == 0 or (t.billing_break_minutes is none and not t.meal_start_time)) %}checked{% endif %} onchange="toggleAdminMeal(this, '{{ t.id }}', true)">
+                    No break taken for billing
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
+              <strong style="color:var(--amber-deep); display:block; margin-bottom:10px">3. Dispute Status</strong>
+              <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap">
+                <label style="display:inline-flex; align-items:center; gap:6px; font-weight:600; cursor:pointer">
+                  <input type="checkbox" name="is_disputed" value="true" {% if t.is_disputed %}checked{% endif %}>
+                  Mark timesheet as Disputed / Adjusted
+                </label>
+                
+                <input type="text" name="dispute_reason" value="{{ t.dispute_reason or '' }}" placeholder="Dispute / Adjustment Reason" style="flex:1; min-width:250px; border:1.5px solid var(--line); border-radius:8px; padding:6px 10px">
+              </div>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; gap:10px">
+              <button class="btn btn-ghost" type="button" onclick="toggleAdminEditForm('{{ t.id }}')">Cancel</button>
+              <button class="btn" type="submit">Save Changes</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>No timesheets logged in the system yet.</p></div>
+  {% endif %}
+</div>
+
+<script>
+function toggleAdminEditForm(id) {
+  var row = document.getElementById('admin_edit_row_' + id);
+  if (row.style.display === 'none') {
+    row.style.display = 'table-row';
+    // Init state of meal break boxes
+    var empNoBrk = row.querySelector('input[name="no_break"]');
+    var billNoBrk = row.querySelector('input[name="billing_no_break"]');
+    toggleAdminMeal(empNoBrk, id, false);
+    toggleAdminMeal(billNoBrk, id, true);
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function toggleAdminMeal(chk, id, isBilling) {
+  var prefix = isBilling ? 'admin_billing_meal_' : 'admin_meal_';
+  var start = document.getElementById(prefix + 'start_' + id);
+  var end = document.getElementById(prefix + 'end_' + id);
+  if (chk.checked) {
+    start.disabled = true;
+    end.disabled = true;
+    start.required = false;
+    end.required = false;
+    start.style.opacity = '0.5';
+    end.style.opacity = '0.5';
+  } else {
+    start.disabled = false;
+    end.disabled = false;
+    start.required = true;
+    end.required = true;
+    start.style.opacity = '1';
+    end.style.opacity = '1';
+  }
+}
+</script>
+
+{% endblock %}

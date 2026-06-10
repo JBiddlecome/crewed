@@ -88,4 +88,148 @@
   {% else %}<p style="color:var(--muted)">No shifts yet.</p>{% endif %}
 </div>
 
+<div class="grid grid-2" style="margin-top: 20px;">
+  <!-- A-List Column -->
+  <div>
+    <div class="card" style="margin-bottom: 20px;">
+      <h2>A-List (Preferred Crew)</h2>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
+        Preferred crew members for this client.
+      </p>
+      {% if alist %}
+      <table class="table">
+        <thead><tr><th>Crew Member</th><th>Scope</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          {% for entry in alist %}
+          <tr>
+            <td class="strong">
+              {{ entry.employee.name }}
+              <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
+            </td>
+            <td>
+              {% if entry.location %}
+                <span class="badge" style="background-color: var(--seafoam-tint); color: var(--seafoam-deep)">{{ entry.location.name }}</span>
+              {% else %}
+                <span class="badge" style="background-color: var(--line); color: var(--muted)">Client-wide</span>
+              {% endif %}
+            </td>
+            <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.notes or '' }}">
+              {{ entry.notes or '—' }}
+            </td>
+            <td class="actions">
+              <form method="post" action="/admin/clients/{{ company.id }}/crew/alist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from A-List?')" style="display:inline">
+                <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty"><div class="mark">★</div><p>No crew members on the A-List yet.</p></div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Add to A-List</h2>
+      <form method="post" action="/admin/clients/{{ company.id }}/crew/alist">
+        <div class="field">
+          <label for="alist_employee">Crew Member</label>
+          <select id="alist_employee" name="employee_id" required>
+            <option value="">Select crew member...</option>
+            {% for emp in employees %}
+              <option value="{{ emp.id }}">{{ emp.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="alist_location">Location Scope</label>
+          <select id="alist_location" name="location_id">
+            <option value="0">All Locations (Client-wide)</option>
+            {% for loc in company.locations %}
+              <option value="{{ loc.id }}">{{ loc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="alist_notes">Notes <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+          <input id="alist_notes" name="notes" placeholder="e.g. Friendly, great chef skill, request first">
+        </div>
+        <button class="btn" type="submit">Add to A-List</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Block List Column -->
+  <div>
+    <div class="card" style="margin-bottom: 20px;">
+      <h2>Block List</h2>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
+        Blocked crew members. Adding a worker automatically cancels their future shifts.
+      </p>
+      {% if blocklist %}
+      <table class="table">
+        <thead><tr><th>Crew Member</th><th>Scope</th><th>Reason</th><th></th></tr></thead>
+        <tbody>
+          {% for entry in blocklist %}
+          <tr>
+            <td class="strong">
+              {{ entry.employee.name }}
+              <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
+            </td>
+            <td>
+              {% if entry.location %}
+                <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">{{ entry.location.name }}</span>
+              {% else %}
+                <span class="badge" style="background-color: var(--coral-tint); color: var(--coral-dark)">Client-wide</span>
+              {% endif %}
+            </td>
+            <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.reason or '' }}">
+              {{ entry.reason or '—' }}
+            </td>
+            <td class="actions">
+              <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from Block List?')" style="display:inline">
+                <button class="btn btn-danger btn-sm" type="submit">Unblock</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty"><div class="mark">🚫</div><p>No crew members blocked.</p></div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Block a Crew Member</h2>
+      <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist">
+        <div class="field">
+          <label for="block_employee">Crew Member</label>
+          <select id="block_employee" name="employee_id" required>
+            <option value="">Select crew member...</option>
+            {% for emp in employees %}
+              <option value="{{ emp.id }}">{{ emp.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="block_location">Location Scope</label>
+          <select id="block_location" name="location_id">
+            <option value="0">All Locations (Client-wide)</option>
+            {% for loc in company.locations %}
+              <option value="{{ loc.id }}">{{ loc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="block_reason">Reason for Blocking <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+          <input id="block_reason" name="reason" placeholder="e.g. Late, unprofessional behavior">
+        </div>
+        <button class="btn btn-danger" type="submit">Block Crew Member</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

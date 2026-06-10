@@ -19,17 +19,48 @@
 {% if needs_timesheet %}
 <div class="section-label">Submit your hours</div>
 {% for a in needs_timesheet %}
-<div class="shift-card">
-  <div class="date-block">
-    <div class="mon">{{ a.shift.shift_date.strftime('%b') }}</div>
-    <div class="day">{{ a.shift.shift_date.day }}</div>
+<div class="shift-card" style="flex-wrap:wrap">
+  <div style="display:flex; width:100%; align-items:center">
+    <div class="date-block">
+      <div class="mon">{{ a.shift.shift_date.strftime('%b') }}</div>
+      <div class="day">{{ a.shift.shift_date.day }}</div>
+    </div>
+    {{ shift_line(a) }}
   </div>
-  {{ shift_line(a) }}
-  <form method="post" action="/employee/timesheets/{{ a.id }}/submit" class="inline-form" style="flex-wrap:wrap;justify-content:flex-end">
-    <input type="time" name="start_time" value="{{ a.shift.start_time }}" required title="Start">
-    <input type="time" name="end_time" value="{{ a.shift.end_time }}" required title="End">
-    <input type="number" name="break_minutes" value="0" min="0" step="5" style="width:64px" title="Break (minutes)">
-    <button class="btn btn-sm" type="submit">Submit hours</button>
+  <form method="post" action="/employee/timesheets/{{ a.id }}/submit" style="display:flex; flex-direction:column; gap:12px; margin-top:10px; width:100%">
+    <div class="form-row" style="display:flex; gap:12px; flex-wrap:wrap">
+      <div class="field" style="margin:0; flex:1; min-width:120px">
+        <label style="font-size:0.75rem; font-weight:600; text-transform:uppercase">Shift Start</label>
+        <input type="time" name="start_time" value="{{ a.shift.start_time }}" required style="width:100%; border:1.5px solid var(--line); border-radius:8px; padding:6px 9px">
+      </div>
+      <div class="field" style="margin:0; flex:1; min-width:120px">
+        <label style="font-size:0.75rem; font-weight:600; text-transform:uppercase">Shift End</label>
+        <input type="time" name="end_time" value="{{ a.shift.end_time }}" required style="width:100%; border:1.5px solid var(--line); border-radius:8px; padding:6px 9px">
+      </div>
+    </div>
+    
+    <div style="background:var(--coral-tint); border:1px solid var(--coral); border-radius:8px; padding:12px; margin-top:4px">
+      <strong style="color:var(--coral-dark); font-size:0.85rem; display:block; margin-bottom:6px">Meal Break (Required)</strong>
+      <div class="form-row" style="display:flex; gap:12px; flex-wrap:wrap">
+        <div class="field" style="margin:0; flex:1; min-width:120px">
+          <label style="font-size:0.7rem; font-weight:600; text-transform:uppercase">Meal In</label>
+          <input type="time" name="meal_start_time" id="meal_start_{{ a.id }}" value="12:00" style="width:100%; border:1.5px solid var(--line); border-radius:8px; padding:6px 9px">
+        </div>
+        <div class="field" style="margin:0; flex:1; min-width:120px">
+          <label style="font-size:0.7rem; font-weight:600; text-transform:uppercase">Meal Out</label>
+          <input type="time" name="meal_end_time" id="meal_end_{{ a.id }}" value="12:30" style="width:100%; border:1.5px solid var(--line); border-radius:8px; padding:6px 9px">
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; cursor:pointer">
+          <input type="checkbox" name="no_break" onchange="toggleMealInputs(this, '{{ a.id }}')">
+          No break taken
+        </label>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end">
+      <button class="btn btn-sm" type="submit">Submit hours</button>
+    </div>
   </form>
 </div>
 {% endfor %}
@@ -80,7 +111,7 @@
 <div class="section-label">History</div>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Date</th><th>Shift</th><th>Status</th><th>Hours</th><th>Earned</th></tr></thead>
+    <thead><tr><th>Date</th><th>Shift</th><th>Status</th><th>Hours</th><th>Earned</th><th>Actions</th></tr></thead>
     <tbody>
       {% for a in history %}
       <tr>
@@ -93,8 +124,27 @@
             <span class="badge badge-{{ a.status }}">{{ a.status }}</span>
           {% endif %}
         </td>
-        <td>{% if a.timesheet and a.timesheet.hours %}{{ '%.2f' % a.timesheet.hours }}{% else %}—{% endif %}</td>
-        <td>{% if a.timesheet and a.timesheet.hours %}{{ (a.timesheet.hours * a.shift.pay_rate)|money }}{% else %}—{% endif %}</td>
+        <td>
+          {% if a.timesheet and a.timesheet.employee_hours %}
+            {{ '%.2f' % a.timesheet.employee_hours }}
+            {% if a.timesheet.is_disputed %}
+              <div style="font-size:0.75rem; color:var(--muted)">Adjusted for billing</div>
+            {% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>{% if a.timesheet and a.timesheet.employee_hours %}{{ (a.timesheet.employee_hours * a.shift.pay_rate)|money }}{% else %}—{% endif %}</td>
+        <td>
+          {% if a.status not in ('cancelled', 'declined') and a.timesheet and not a.timesheet.is_closed %}
+            <a class="btn btn-ghost btn-sm" href="/employee/timesheets/{{ a.id }}/edit">Adjust</a>
+          {% elif a.timesheet and a.timesheet.is_closed %}
+            <span style="font-size:0.8rem; color:var(--muted)">Locked</span>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
       </tr>
       {% endfor %}
     </tbody>
@@ -102,4 +152,32 @@
 </div>
 {% endif %}
 
+<script>
+function toggleMealInputs(chk, id) {
+  var start = document.getElementById('meal_start_' + id);
+  var end = document.getElementById('meal_end_' + id);
+  if (chk.checked) {
+    start.disabled = true;
+    end.disabled = true;
+    start.required = false;
+    end.required = false;
+    start.style.opacity = '0.5';
+    end.style.opacity = '0.5';
+  } else {
+    start.disabled = false;
+    end.disabled = false;
+    start.required = true;
+    end.required = true;
+    start.style.opacity = '1';
+    end.style.opacity = '1';
+  }
+}
+// Run toggle on all no_break checkboxes on load in case prefilled
+document.addEventListener("DOMContentLoaded", function() {
+  document.querySelectorAll('input[name="no_break"]').forEach(function(chk) {
+    var id = chk.getAttribute('onchange').match(/'([^']+)'/)[1];
+    toggleMealInputs(chk, id);
+  });
+});
+</script>
 {% endblock %}

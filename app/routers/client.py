@@ -794,20 +794,128 @@ def timesheets(
 def approve_timesheet(
     timesheet_id: int,
     request: Request,
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    meal_start_time: str = Form(None),
+    meal_end_time: str = Form(None),
+    no_break: bool = Form(False),
+    dispute_reason: str = Form(""),
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
     t = db.get(models.Timesheet, timesheet_id)
     if not t or t.assignment.shift.client_id != user.client_id:
         flash(request, "Timesheet not found.", "error")
+    elif t.is_closed:
+        flash(request, "This timesheet is closed.", "error")
     elif t.status != "submitted":
         flash(request, "Only submitted timesheets can be approved.", "warning")
     else:
+        # Check if the client modified any times compared to employee submission
+        meal_changed = False
+        if no_break:
+            if t.meal_start_time is not None or t.meal_end_time is not None:
+                meal_changed = True
+        else:
+            if meal_start_time != t.meal_start_time or meal_end_time != t.meal_end_time:
+                meal_changed = True
+        
+        edited = (
+            start_time != t.start_time or
+            end_time != t.end_time or
+            meal_changed
+        )
+        if edited:
+            t.billing_start_time = start_time
+            t.billing_end_time = end_time
+            if no_break:
+                t.billing_meal_start_time = None
+                t.billing_meal_end_time = None
+                t.billing_break_minutes = 0
+            else:
+                t.billing_meal_start_time = meal_start_time or None
+                t.billing_meal_end_time = meal_end_time or None
+                if t.billing_meal_start_time and t.billing_meal_end_time:
+                    t.billing_break_minutes = models.minutes_between(t.billing_meal_start_time, t.billing_meal_end_time)
+                else:
+                    t.billing_break_minutes = 0
+            t.is_disputed = True
+            t.dispute_reason = dispute_reason.strip() or None
+        
         t.status = "approved"
         t.approved_at = datetime.utcnow()
         db.commit()
-        flash(request, f"Timesheet approved — {t.hours:.2f} hours for {t.assignment.employee.name}.")
+        
+        msg = f"Timesheet approved — {t.hours:.2f} hours for {t.assignment.employee.name}."
+        if edited:
+            msg += " (Hours adjusted for billing)"
+        flash(request, msg)
     return RedirectResponse("/client/timesheets", status_code=303)
+
+
+@router.post("/timesheets/{timesheet_id}/edit")
+def edit_timesheet(
+    timesheet_id: int,
+    request: Request,
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    meal_start_time: str = Form(None),
+    meal_end_time: str = Form(None),
+    no_break: bool = Form(False),
+    dispute_reason: str = Form(""),
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    t = db.get(models.Timesheet, timesheet_id)
+    if not t or t.assignment.shift.client_id != user.client_id:
+        flash(request, "Timesheet not found.", "error")
+        return RedirectResponse("/client/timesheets", status_code=303)
+    if t.is_closed:
+        flash(request, "This timesheet is closed and cannot be edited.", "error")
+        return RedirectResponse("/client/timesheets", status_code=303)
+        
+    meal_changed = False
+    if no_break:
+        if t.meal_start_time is not None or t.meal_end_time is not None:
+            meal_changed = True
+    else:
+        if meal_start_time != t.meal_start_time or meal_end_time != t.meal_end_time:
+            meal_changed = True
+            
+    edited = (
+        start_time != t.start_time or
+        end_time != t.end_time or
+        meal_changed
+    )
+    if edited:
+        t.billing_start_time = start_time
+        t.billing_end_time = end_time
+        if no_break:
+            t.billing_meal_start_time = None
+            t.billing_meal_end_time = None
+            t.billing_break_minutes = 0
+        else:
+            t.billing_meal_start_time = meal_start_time or None
+            t.billing_meal_end_time = meal_end_time or None
+            if t.billing_meal_start_time and t.billing_meal_end_time:
+                t.billing_break_minutes = models.minutes_between(t.billing_meal_start_time, t.billing_meal_end_time)
+            else:
+                t.billing_break_minutes = 0
+        t.is_disputed = True
+        t.dispute_reason = dispute_reason.strip() or None
+    else:
+        t.billing_start_time = None
+        t.billing_end_time = None
+        t.billing_break_minutes = None
+        t.billing_meal_start_time = None
+        t.billing_meal_end_time = None
+        t.is_disputed = False
+        t.dispute_reason = None
+        
+    db.commit()
+    flash(request, f"Timesheet updated — {t.billing_hours:.2f} hours billed.")
+    return RedirectResponse("/client/timesheets", status_code=303)
+
 
 
 # ---------- A-List & Block List (Crew Management) ----------

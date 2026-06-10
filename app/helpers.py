@@ -72,9 +72,14 @@ def qualifies(db: Session, user: models.User, shift: models.Shift):
     if blocked:
         reasons.append("You are on the block list for this client/location")
 
-    position_ids = {p.position_id for p in user.positions}
+    position_ids = {p.position_id for p in user.positions if p.status == "approved"}
     if shift.position_id not in position_ids:
-        reasons.append(f"{shift.position.name} is not on your profile")
+        all_positions = {p.position_id: p.status for p in user.positions}
+        if shift.position_id in all_positions:
+            status = all_positions[shift.position_id]
+            reasons.append(f"{shift.position.name} is on your profile but is {status}")
+        else:
+            reasons.append(f"{shift.position.name} is not on your profile")
 
     client_position = (
         db.query(models.ClientPosition)
@@ -185,3 +190,21 @@ def remove_employee_from_future_shifts(db: Session, employee_id: int, client_id:
     for a in future_assignments:
         a.status = "cancelled"
         refresh_shift_status(db, a.shift)
+
+
+def get_past_due_assignment(db: Session, employee_id: int):
+    """Find the oldest assignment for this employee where shift_date has passed (yesterday or earlier),
+    a timesheet exists, and its status is 'pending'."""
+    today = date.today()
+    return (
+        db.query(models.Assignment)
+        .join(models.Shift)
+        .join(models.Timesheet)
+        .filter(
+            models.Assignment.employee_id == employee_id,
+            models.Shift.shift_date < today,
+            models.Timesheet.status == "pending",
+        )
+        .order_by(models.Shift.shift_date.asc())
+        .first()
+    )

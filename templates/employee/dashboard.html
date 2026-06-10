@@ -3,7 +3,98 @@
 {% block heading %}Hi, {{ user.first_name }}{% endblock %}
 {% block content %}
 
+{% if today_assignment %}
+<div class="card timeclock-card" style="border-left:4px solid var(--seafoam); margin-bottom:20px;">
+  <h2>Today's Timeclock</h2>
+  <div class="timeclock-shift-info">
+    <strong>{{ today_assignment.shift.position.name }} — {{ today_assignment.shift.company.name }}</strong>
+    <p>{{ today_assignment.shift.start_time }}–{{ today_assignment.shift.end_time }} · {{ today_assignment.shift.location.name }}</p>
+  </div>
+  
+  {% set t = today_assignment.timesheet %}
+  <div class="timeclock-status">
+    {% if not t.start_time %}
+      <div class="tc-status-text" style="margin-bottom:12px">Status: <strong>Not Clocked In</strong></div>
+      <button class="btn btn-soft tc-btn" onclick="sendClockEvent('clock_in')">Clock In</button>
+    {% elif not t.end_time %}
+      {% if not t.meal_start_time %}
+        <div class="tc-status-text" style="margin-bottom:12px">Status: <strong>Clocked In</strong> at {{ t.start_time }}</div>
+        <div class="tc-actions" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap">
+          <button class="btn btn-soft tc-btn" onclick="sendClockEvent('meal_start')">Start Meal Break</button>
+          <div style="display:inline-flex; align-items:center; gap:8px">
+            <button class="btn tc-btn" onclick="sendClockEvent('clock_out', 'tc_no_break')">Clock Out</button>
+            <label style="font-size:0.85rem; cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:4px">
+              <input type="checkbox" id="tc_no_break"> No break taken
+            </label>
+          </div>
+        </div>
+      {% elif not t.meal_end_time %}
+        <div class="tc-status-text" style="margin-bottom:12px">Status: <strong>On Break</strong> (Meal started at {{ t.meal_start_time }})</div>
+        <button class="btn btn-soft tc-btn" onclick="sendClockEvent('meal_end')">End Meal Break</button>
+      {% else %}
+        <div class="tc-status-text" style="margin-bottom:12px">
+          Status: <strong>Clocked In</strong> at {{ t.start_time }}<br>
+          Meal Break: {{ t.meal_start_time }} to {{ t.meal_end_time }} ({{ t.employee_break_minutes }} mins)
+        </div>
+        <button class="btn tc-btn" onclick="sendClockEvent('clock_out')">Clock Out</button>
+      {% endif %}
+    {% else %}
+      <div class="tc-status-text" style="margin-bottom:12px">
+        Status: <strong>Completed</strong><br>
+        Clock In: {{ t.start_time }} · Clock Out: {{ t.end_time }}<br>
+        {% if t.meal_start_time %}Meal Break: {{ t.meal_start_time }} to {{ t.meal_end_time }} ({{ t.employee_break_minutes }} mins)<br>{% endif %}
+        Hours Worked: <strong>{{ '%.2f' % t.employee_hours }} hrs</strong>
+      </div>
+      <a class="btn btn-ghost btn-sm" href="/employee/timesheets/{{ today_assignment.id }}/edit">Adjust Hours</a>
+    {% endif %}
+  </div>
+  
+  <form id="timeclock_form" method="post" action="/employee/timeclock/{{ t.id }}/event" style="display:none">
+    <input type="hidden" name="event_type" id="clock_event_type">
+    <input type="hidden" name="event_time" id="clock_event_time">
+    <input type="hidden" name="no_break" id="clock_no_break" value="false">
+  </form>
+</div>
+
+<script>
+function sendClockEvent(type, chkId) {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('clock_event_time').value = `${hh}:${mm}`;
+    document.getElementById('clock_event_type').value = type;
+    if (chkId && document.getElementById(chkId).checked) {
+        document.getElementById('clock_no_break').value = 'true';
+    } else {
+        document.getElementById('clock_no_break').value = 'false';
+    }
+    document.getElementById('timeclock_form').submit();
+}
+</script>
+
+<style>
+.timeclock-card {
+  box-shadow: 0 4px 15px rgba(142, 197, 191, 0.15);
+}
+.timeclock-shift-info strong {
+  font-size: 1.1rem;
+  color: var(--plum-ink);
+}
+.timeclock-shift-info p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 4px 0 12px;
+}
+.tc-status-text {
+  font-size: 0.95rem;
+  color: var(--ink);
+  line-height: 1.45;
+}
+</style>
+{% endif %}
+
 {% if user.status == 'pending' %}
+
 <div class="card" style="border-left:4px solid var(--amber)">
   <h2>Your account is being reviewed</h2>
   <p style="margin:0;color:var(--muted)">Build out your <a href="/employee/profile">profile</a> — positions and certifications — so you're ready to apply the moment you're approved.</p>

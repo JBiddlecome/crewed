@@ -14,14 +14,73 @@
 <div class="card">
   {% if employees %}
   <table class="table">
-    <thead><tr><th>Name</th><th>Contact</th><th>Location</th><th>Positions</th><th>Status</th><th class="actions"></th></tr></thead>
+    <thead><tr><th>Name</th><th>Photo</th><th>Contact</th><th>Location</th><th>Positions</th><th>Status</th><th class="actions"></th></tr></thead>
     <tbody>
       {% for e in employees %}
       <tr>
-        <td class="strong">{{ e.name }}</td>
+        <td class="strong">
+          {{ e.name }}
+          {% if e.resume_file %}
+            <div style="margin-top:4px;">
+              <a href="/uploads/resumes/{{ e.resume_file }}" target="_blank" class="btn btn-soft btn-sm" style="padding: 2px 8px; font-size: 0.75rem; font-weight:500;">
+                📄 View Resume
+              </a>
+            </div>
+          {% endif %}
+        </td>
+        <td>
+          {% if e.profile_picture %}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <img src="/uploads/profile_pics/{{ e.profile_picture }}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:1.5px solid var(--line);" alt="Photo">
+              <div>
+                {% if e.profile_picture_approved %}
+                  <span style="color:var(--seafoam-deep); font-size:0.75rem; font-weight:600; display:block;">Approved</span>
+                  <form method="post" action="/admin/employees/{{ e.id }}/reject_photo" style="margin-top:2px;">
+                    <button class="btn btn-danger btn-sm" type="submit" style="padding: 2px 6px; font-size: 0.7rem;">Reject</button>
+                  </form>
+                {% else %}
+                  <span style="color:var(--amber-deep); font-size:0.75rem; font-weight:600; display:block; margin-bottom:2px;">Pending</span>
+                  <div style="display:flex; gap:4px;">
+                    <form method="post" action="/admin/employees/{{ e.id }}/approve_photo">
+                      <button class="btn btn-sm" type="submit" style="padding: 2px 6px; font-size: 0.7rem; background-color: var(--seafoam-deep);">Approve</button>
+                    </form>
+                    <form method="post" action="/admin/employees/{{ e.id }}/reject_photo">
+                      <button class="btn btn-danger btn-sm" type="submit" style="padding: 2px 6px; font-size: 0.7rem;">Reject</button>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <span style="color:var(--muted); font-size:0.85rem; font-style:italic;">No photo</span>
+          {% endif %}
+        </td>
         <td>{{ e.email }}{% if e.phone %}<div style="color:var(--muted);font-size:.8rem">{{ e.phone }}</div>{% endif %}</td>
         <td>{% if e.city %}{{ e.city }}, {{ e.state }}{% else %}—{% endif %}</td>
-        <td>{% for ep in e.positions %}<span class="chip">{{ ep.position.name }}</span>{% else %}—{% endfor %}</td>
+        <td>
+          {% for ep in e.positions %}
+            <div class="admin-position-row" style="display:inline-flex; align-items:center; gap:4px; margin: 2px;">
+              <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}" {% if ep.status == 'declined' and ep.decline_reason %}title="Declined: {{ ep.decline_reason }}"{% endif %}>
+                {{ ep.position.name }}
+                <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">
+                  ({{ ep.status }})
+                </small>
+              </span>
+              {% if ep.status != 'approved' %}
+                <form class="inline-form" method="post" action="/admin/employee-position/{{ ep.id }}/approve" style="display:inline;">
+                  <button class="btn btn-sm" type="submit" title="Manually Approve" style="padding: 2px 5px; font-size: 0.75rem;">✓</button>
+                </form>
+              {% endif %}
+              {% if ep.status != 'declined' %}
+                <form class="inline-form" method="post" action="/admin/employee-position/{{ ep.id }}/decline" style="display:inline;">
+                  <button class="btn btn-danger btn-sm" type="submit" title="Manually Decline" style="padding: 2px 5px; font-size: 0.75rem;">×</button>
+                </form>
+              {% endif %}
+            </div>
+          {% else %}
+            <span style="color:var(--muted)">—</span>
+          {% endfor %}
+        </td>
         <td><span class="badge badge-{{ e.status }}">{{ e.status }}</span></td>
         <td class="actions">
           {% if e.status == 'pending' %}
