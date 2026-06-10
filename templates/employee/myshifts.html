@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}My Shifts — Crewed{% endblock %}
+{% block heading %}My Shifts{% endblock %}
+{% block content %}
+
+{% macro shift_line(a, with_details=False) %}
+  <div class="body">
+    <div class="title">{{ a.shift.position.name }} — {{ a.shift.company.name }}</div>
+    <div class="meta">{{ a.shift.shift_date|dt }} · {{ a.shift.start_time }}–{{ a.shift.end_time }} · {{ a.shift.location.name }}, {{ a.shift.location.city }}</div>
+    {% if with_details and details.get(a.shift.id) %}
+      {% set dd = details[a.shift.id] %}
+      {% if dd.check_in_location or dd.check_in_contact %}<div class="meta">Check in: {{ dd.check_in_location or '' }}{% if dd.check_in_location and dd.check_in_contact %} · {% endif %}{{ dd.check_in_contact or '' }}</div>{% endif %}
+      {% if dd.parking %}<div class="meta">Parking: {{ dd.parking }}</div>{% endif %}
+      {% if a.shift.notes %}<div class="meta">{{ a.shift.notes }}</div>{% endif %}
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% if needs_timesheet %}
+<div class="section-label">Submit your hours</div>
+{% for a in needs_timesheet %}
+<div class="shift-card">
+  <div class="date-block">
+    <div class="mon">{{ a.shift.shift_date.strftime('%b') }}</div>
+    <div class="day">{{ a.shift.shift_date.day }}</div>
+  </div>
+  {{ shift_line(a) }}
+  <form method="post" action="/employee/timesheets/{{ a.id }}/submit" class="inline-form" style="flex-wrap:wrap;justify-content:flex-end">
+    <input type="time" name="start_time" value="{{ a.shift.start_time }}" required title="Start">
+    <input type="time" name="end_time" value="{{ a.shift.end_time }}" required title="End">
+    <input type="number" name="break_minutes" value="0" min="0" step="5" style="width:64px" title="Break (minutes)">
+    <button class="btn btn-sm" type="submit">Submit hours</button>
+  </form>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="section-label">Upcoming confirmed</div>
+{% if upcoming %}
+  {% for a in upcoming %}
+  <div class="shift-card">
+    <div class="date-block">
+      <div class="mon">{{ a.shift.shift_date.strftime('%b') }}</div>
+      <div class="day">{{ a.shift.shift_date.day }}</div>
+    </div>
+    {{ shift_line(a, with_details=True) }}
+    <div class="pay">
+      <div class="rate">{{ a.shift.pay_rate|money }}<small>/hr</small></div>
+      <span class="badge badge-confirmed">Confirmed</span>
+      <form method="post" action="/employee/assignments/{{ a.id }}/cancel" onsubmit="return confirm('Cancel this shift? The business will be notified.')" style="margin-top:6px">
+        <button class="btn btn-ghost btn-sm" type="submit">Cancel</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card"><div class="empty"><p>No confirmed shifts coming up. <a href="/employee/shifts">Find one →</a></p></div></div>
+{% endif %}
+
+{% if requested %}
+<div class="section-label">Waiting on confirmation</div>
+{% for a in requested %}
+<div class="shift-card">
+  <div class="date-block">
+    <div class="mon">{{ a.shift.shift_date.strftime('%b') }}</div>
+    <div class="day">{{ a.shift.shift_date.day }}</div>
+  </div>
+  {{ shift_line(a) }}
+  <div class="pay">
+    <span class="badge badge-requested">Requested</span>
+    <form method="post" action="/employee/assignments/{{ a.id }}/cancel" style="margin-top:6px">
+      <button class="btn btn-ghost btn-sm" type="submit">Withdraw</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if history %}
+<div class="section-label">History</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Date</th><th>Shift</th><th>Status</th><th>Hours</th><th>Earned</th></tr></thead>
+    <tbody>
+      {% for a in history %}
+      <tr>
+        <td>{{ a.shift.shift_date|dt }}</td>
+        <td>{{ a.shift.position.name }} · {{ a.shift.company.name }}</td>
+        <td>
+          {% if a.timesheet and a.timesheet.status != 'pending' %}
+            <span class="badge badge-{{ a.timesheet.status }}">{{ a.timesheet.status }}</span>
+          {% else %}
+            <span class="badge badge-{{ a.status }}">{{ a.status }}</span>
+          {% endif %}
+        </td>
+        <td>{% if a.timesheet and a.timesheet.hours %}{{ '%.2f' % a.timesheet.hours }}{% else %}—{% endif %}</td>
+        <td>{% if a.timesheet and a.timesheet.hours %}{{ (a.timesheet.hours * a.shift.pay_rate)|money }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

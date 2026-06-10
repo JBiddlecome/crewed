@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Shifts — Crewed{% endblock %}
+{% block heading %}All Shifts{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Upcoming</h2>
+  {% if upcoming %}
+  <table class="table">
+    <thead><tr><th>Date</th><th>Client</th><th>Position</th><th>Location</th><th>Time</th><th>Pay</th><th>Bill</th><th>Staffed</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in upcoming %}
+      <tr>
+        <td class="strong">{{ s.shift_date|dt }}</td>
+        <td><a href="/admin/clients/{{ s.client_id }}">{{ s.company.name }}</a></td>
+        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+        <td>{{ s.location.name }} ({{ s.location.state }})</td>
+        <td>{{ s.start_time }}–{{ s.end_time }}</td>
+        <td>{{ s.pay_rate|money }}</td>
+        <td>{{ s.bill_rate|money }}</td>
+        <td>{{ s.confirmed_count }}/{{ s.headcount }}{% if s.requested_count %} <span class="chip chip-warn">{{ s.requested_count }} waiting</span>{% endif %}</td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">C</div><p>No upcoming shifts.</p></div>
+  {% endif %}
+</div>
+
+{% if past %}
+<div class="card">
+  <h2>Past</h2>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Client</th><th>Position</th><th>Location</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in past %}
+      <tr>
+        <td>{{ s.shift_date|dt }}</td>
+        <td>{{ s.company.name }}</td>
+        <td>{{ s.position.name }}</td>
+        <td>{{ s.location.name }}</td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

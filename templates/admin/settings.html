@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Settings — Crewed{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:480px">
+  <h2>Global billing markup</h2>
+  <p class="card-note">Bill rate = pay rate + this markup. Individual clients can be given an override on their client page.</p>
+  <form method="post" action="/admin/settings">
+    <div class="field">
+      <label for="markup_percent">Markup (%)</label>
+      <input id="markup_percent" name="markup_percent" type="number" step="0.5" min="0" value="{{ markup }}" required>
+      <div class="hint">Example: a $20.00/hr pay rate bills at <strong>${{ '%.2f' % (20 * (1 + markup|float / 100)) }}/hr</strong></div>
+    </div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+
+{% endblock %}

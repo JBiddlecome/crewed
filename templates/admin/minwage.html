@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Minimum Wage — Crewed{% endblock %}
+{% block heading %}Minimum Wage{% endblock %}
+{% block subheading %}<div class="sub">Per-state floors applied to every pay rate. Seeded with defaults — verify against current law.</div>{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:560px">
+  <table class="table">
+    <thead><tr><th>State</th><th>Minimum wage</th><th class="actions"></th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="strong">{{ state_names.get(row.state, row.state) }} <span style="color:var(--muted)">({{ row.state }})</span></td>
+        <td colspan="2">
+          <form class="inline-form" method="post" action="/admin/minwage/{{ row.id }}">
+            <span style="color:var(--muted)">$</span>
+            <input type="number" name="rate" step="0.05" min="0.01" value="{{ '%.2f' % row.rate }}">
+            <button class="btn btn-soft btn-sm" type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

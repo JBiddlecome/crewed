@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ loc.name }} · {{ d|dt }} — Crewed{% endblock %}
+{% block heading %}{{ loc.name }}{% endblock %}
+{% block subheading %}<div class="sub">{{ d.strftime('%A') }}, {{ d|dt }} · {{ loc.address1 }}, {{ loc.city }}, {{ loc.state }}</div>{% endblock %}
+{% block actions %}
+  <div style="display:flex;gap:8px">
+    <a class="btn btn-ghost" href="/client/shifts?year={{ d.year }}&month={{ d.month }}">← Calendar</a>
+    <a class="btn" href="/client/shifts/new">+ Post a shift</a>
+  </div>
+{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Details for this date</h2>
+    <p class="card-note">Saving applies to <strong>every shift at {{ loc.name }} on {{ d|dt }}</strong>. Crew see these on their shift.{% if has_day_override %} <span class="chip chip-warn">Date override active</span>{% endif %}</p>
+    <form method="post" action="/client/days/{{ loc.id }}/{{ d.isoformat() }}/details">
+      <div class="field">
+        <label for="parking">Parking</label>
+        <textarea id="parking" name="parking" rows="2" placeholder="e.g. Free parking in Lot B off 5th St">{{ day_details.parking }}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="check_in_location">Where to check in</label>
+          <input id="check_in_location" name="check_in_location" value="{{ day_details.check_in_location }}" placeholder="e.g. Loading dock, rear entrance">
+        </div>
+        <div class="field">
+          <label for="check_in_contact">Check in with</label>
+          <input id="check_in_contact" name="check_in_contact" value="{{ day_details.check_in_contact }}" placeholder="e.g. Maria (Event Manager)">
+        </div>
+      </div>
+      <button class="btn" type="submit">Save for this date</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Message the crew</h2>
+    <p class="card-note">
+      Goes to all <strong>{{ confirmed_crew|length }}</strong> confirmed crew member{{ 's' if confirmed_crew|length != 1 }} working {{ loc.name }} on {{ d|dt }}{% if confirmed_crew %}: {% for c in confirmed_crew %}{{ c.first_name }}{{ ", " if not loop.last }}{% endfor %}{% endif %}.
+    </p>
+    <form method="post" action="/client/days/{{ loc.id }}/{{ d.isoformat() }}/message">
+      <div class="field">
+        <textarea name="body" rows="3" placeholder="e.g. Event start moved up 30 minutes — please arrive by 3:30 PM." required></textarea>
+      </div>
+      <button class="btn" type="submit" {{ 'disabled' if not confirmed_crew }}>Send to all crew</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Shifts at {{ loc.name }} on {{ d|dt }}</h2>
+  {% if day_shifts %}
+  <table class="table">
+    <thead><tr><th>Time</th><th>Position</th><th>Pay</th><th>Staffed</th><th>Details</th><th>Status</th><th class="actions"></th></tr></thead>
+    <tbody>
+      {% for s in day_shifts %}
+      <tr>
+        <td class="strong">{{ s.start_time }}–{{ s.end_time }}</td>
+        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+        <td><span class="rate">{{ s.pay_rate|money }}<small>/hr</small></span></td>
+        <td>{{ s.confirmed_count }}/{{ s.headcount }}{% if s.requested_count %} <span class="chip chip-warn">{{ s.requested_count }} waiting</span>{% endif %}</td>
+        <td style="font-size:.82rem;color:var(--muted)">
+          {% set dd = details[s.id] %}
+          {% if s.parking or s.check_in_location or s.check_in_contact %}<span class="chip chip-warn">custom</span>{% endif %}
+          {{ dd.check_in_contact or dd.check_in_location or dd.parking or '—' }}
+        </td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+        <td class="actions"><a class="btn btn-ghost btn-sm" href="/client/shifts/{{ s.id }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">C</div><p>No shifts here on this date.</p><a class="btn" href="/client/shifts/new">Post one</a></div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Shifts — Crewed{% endblock %}
+{% block heading %}Shifts{% endblock %}
+{% block subheading %}<div class="sub">Each day shows your locations — open one to see and manage every shift there.</div>{% endblock %}
+{% block actions %}<a class="btn" href="/client/shifts/new">+ Post a shift</a>{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="cal-head">
+    <h2>{{ cal_title }}</h2>
+    <div style="display:flex;gap:8px">
+      <a class="btn btn-ghost btn-sm" href="/client/shifts{{ prev_q }}">← Prev</a>
+      <a class="btn btn-ghost btn-sm" href="/client/shifts">Today</a>
+      <a class="btn btn-ghost btn-sm" href="/client/shifts{{ next_q }}">Next →</a>
+    </div>
+  </div>
+
+  <div class="cal-scroll">
+  <table class="cal">
+    <thead>
+      <tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr>
+    </thead>
+    <tbody>
+      {% for week in weeks %}
+      <tr>
+        {% for d in week %}
+        <td class="{{ 'other' if d.month != cal_month }} {{ 'today-cell' if d == today }}">
+          <span class="daynum {{ 'today-pill' if d == today }}">{{ d.day }}</span>
+          {% if by_day.get(d) %}
+            {% for loc, ss in by_day[d].items() %}
+              {% set conf = ss|sum(attribute='confirmed_count') %}
+              {% set need = ss|sum(attribute='headcount') %}
+              {% set live = ss|rejectattr('status', 'equalto', 'cancelled')|list %}
+              <a class="loc-chip {{ 'needs' if conf < need and live }}" href="/client/days/{{ loc.id }}/{{ d.isoformat() }}">
+                {{ loc.name }}
+                <span class="sub">{{ ss|length }} shift{{ 's' if ss|length != 1 }} · {{ conf }}/{{ need }} staffed</span>
+              </a>
+            {% endfor %}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% endblock %}

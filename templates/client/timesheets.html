@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Timesheets — Crewed{% endblock %}
+{% block heading %}Timesheets{% endblock %}
+{% block subheading %}<div class="sub">Approve submitted hours — approved timesheets feed your invoice.</div>{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Waiting for approval</h2>
+  {% if submitted %}
+  <table class="table">
+    <thead><tr><th>Crew</th><th>Shift</th><th>Date</th><th>Worked</th><th>Hours</th><th>Billed</th><th class="actions"></th></tr></thead>
+    <tbody>
+      {% for t in submitted %}
+      {% set s = t.assignment.shift %}
+      <tr>
+        <td class="strong">{{ t.assignment.employee.name }}</td>
+        <td>{{ s.position.name }} · {{ s.location.name }}</td>
+        <td>{{ s.shift_date|dt }}</td>
+        <td>{{ t.start_time }}–{{ t.end_time }}{% if t.break_minutes %} ({{ t.break_minutes }}m break){% endif %}</td>
+        <td class="strong">{{ '%.2f' % t.hours }}</td>
+        <td>{{ (t.hours * s.bill_rate)|money }}</td>
+        <td class="actions">
+          <form method="post" action="/client/timesheets/{{ t.id }}/approve">
+            <button class="btn btn-sm" type="submit">Approve</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">✓</div><p>Nothing waiting — you're all caught up.</p></div>
+  {% endif %}
+</div>
+
+{% if approved %}
+<div class="card">
+  <h2>Approved</h2>
+  <table class="table">
+    <thead><tr><th>Crew</th><th>Shift</th><th>Date</th><th>Hours</th><th>Billed</th></tr></thead>
+    <tbody>
+      {% for t in approved %}
+      {% set s = t.assignment.shift %}
+      <tr>
+        <td>{{ t.assignment.employee.name }}</td>
+        <td>{{ s.position.name }} · {{ s.location.name }}</td>
+        <td>{{ s.shift_date|dt }}</td>
+        <td>{{ '%.2f' % t.hours }}</td>
+        <td>{{ (t.hours * s.bill_rate)|money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

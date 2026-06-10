@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Notifications — Crewed{% endblock %}
+{% block heading %}Notifications{% endblock %}
+{% block subheading %}<div class="sub">Messages from the businesses you work with.</div>{% endblock %}
+{% block content %}
+
+{% if messages %}
+  {% for m in messages %}
+  <div class="msg {{ 'new' if m.id in new_ids }}">
+    <div class="msg-head">
+      <span class="msg-from">{{ m.sender.company.name if m.sender.company else m.sender.name }}
+        {% if m.id in new_ids %}<span class="nav-badge">new</span>{% endif %}</span>
+      <span class="msg-when">{{ m.created_at|dt }} · {{ m.created_at.strftime('%H:%M') }}</span>
+    </div>
+    {% if m.shift or m.location %}
+    <div class="msg-context">
+      {% if m.shift %}{{ m.shift.position.name }} · {% endif %}{% if m.location %}{{ m.location.name }}{% endif %}{% if m.context_date %} · {{ m.context_date|dt }}{% endif %}
+    </div>
+    {% endif %}
+    <div class="msg-body">{{ m.body }}</div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card">
+  <div class="empty"><div class="mark">🔔</div><p>No messages yet. When a business sends you an update about a shift, it lands here.</p></div>
+</div>
+{% endif %}
+
+{% endblock %}

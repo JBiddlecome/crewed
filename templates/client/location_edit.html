@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ loc.name }} — Crewed{% endblock %}
+{% block heading %}Edit {{ loc.name }}{% endblock %}
+{% block subheading %}<div class="sub">Parking and check-in details here are the defaults for every shift at this location.</div>{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:640px">
+  <form method="post" action="/client/locations/{{ loc.id }}/edit">
+    <div class="field">
+      <label for="name">Location name</label>
+      <input id="name" name="name" value="{{ loc.name }}" required>
+    </div>
+    <div class="field">
+      <label for="address1">Street address</label>
+      <input id="address1" name="address1" value="{{ loc.address1 }}" required>
+    </div>
+    <div class="field">
+      <label for="address2">Suite / floor</label>
+      <input id="address2" name="address2" value="{{ loc.address2 or '' }}">
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="city">City</label>
+        <input id="city" name="city" value="{{ loc.city }}" required>
+      </div>
+      <div class="field">
+        <label for="state">State</label>
+        <select id="state" name="state" required>
+          {% for code, name in states %}<option value="{{ code }}" {{ 'selected' if loc.state == code }}>{{ name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="zip">ZIP</label>
+        <input id="zip" name="zip" value="{{ loc.zip }}" required>
+      </div>
+    </div>
+
+    <h2 style="margin-top:18px">Default shift details</h2>
+    <div class="field">
+      <label for="parking">Parking</label>
+      <textarea id="parking" name="parking" rows="2" placeholder="e.g. Free parking in Lot B off 5th St">{{ loc.parking or '' }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="check_in_location">Where to check in</label>
+        <input id="check_in_location" name="check_in_location" value="{{ loc.check_in_location or '' }}" placeholder="e.g. Loading dock, rear entrance">
+      </div>
+      <div class="field">
+        <label for="check_in_contact">Check in with</label>
+        <input id="check_in_contact" name="check_in_contact" value="{{ loc.check_in_contact or '' }}" placeholder="e.g. Maria (Event Manager)">
+      </div>
+    </div>
+    <button class="btn" type="submit">Save location</button>
+    <a class="btn btn-ghost" href="/client/locations">Cancel</a>
+  </form>
+</div>
+
+{% endblock %}

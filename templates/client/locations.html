@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Locations — Crewed{% endblock %}
+{% block heading %}Locations{% endblock %}
+{% block subheading %}<div class="sub">Each location's address determines the minimum wage that applies to its shifts.</div>{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Your locations</h2>
+    {% if company.locations %}
+    <table class="table">
+      <thead><tr><th>Name</th><th>Address</th><th>Min wage</th><th></th></tr></thead>
+      <tbody>
+        {% for loc in company.locations %}
+        <tr>
+          <td class="strong">{{ loc.name }}
+            {% if loc.check_in_contact or loc.check_in_location %}
+            <div style="color:var(--muted);font-size:.78rem;font-weight:400">Check in: {{ loc.check_in_location or '' }}{% if loc.check_in_location and loc.check_in_contact %} · {% endif %}{{ loc.check_in_contact or '' }}</div>
+            {% endif %}
+            {% if loc.parking %}<div style="color:var(--muted);font-size:.78rem;font-weight:400">Parking: {{ loc.parking }}</div>{% endif %}
+          </td>
+          <td>{{ loc.address1 }}{% if loc.address2 %}, {{ loc.address2 }}{% endif %}<br>
+              <span style="color:var(--muted)">{{ loc.city }}, {{ loc.state }} {{ loc.zip }}</span></td>
+          <td><span class="rate">{{ wages[loc.id]|money }}<small>/hr</small></span></td>
+          <td class="actions">
+            <a class="btn btn-ghost btn-sm" href="/client/locations/{{ loc.id }}/edit">Edit</a>
+            <form method="post" action="/client/locations/{{ loc.id }}/delete" onsubmit="return confirm('Remove this location?')" style="display:inline">
+              <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="mark">📍</div><p>No locations yet — add your first one.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Add a location</h2>
+    <form method="post" action="/client/locations">
+      <div class="field">
+        <label for="name">Location name</label>
+        <input id="name" name="name" placeholder="e.g. Downtown Hotel" required>
+      </div>
+      <div class="field">
+        <label for="address1">Street address</label>
+        <input id="address1" name="address1" required>
+      </div>
+      <div class="field">
+        <label for="address2">Suite / floor <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+        <input id="address2" name="address2">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="city">City</label>
+          <input id="city" name="city" required>
+        </div>
+        <div class="field">
+          <label for="state">State</label>
+          <select id="state" name="state" required>
+            {% for code, name in states %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="zip">ZIP</label>
+          <input id="zip" name="zip" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="parking">Parking <span style="text-transform:none;color:var(--muted)">(default for shifts here)</span></label>
+        <textarea id="parking" name="parking" rows="2" placeholder="e.g. Free parking in Lot B off 5th St"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="check_in_location">Where to check in</label>
+          <input id="check_in_location" name="check_in_location" placeholder="e.g. Loading dock, rear entrance">
+        </div>
+        <div class="field">
+          <label for="check_in_contact">Check in with</label>
+          <input id="check_in_contact" name="check_in_contact" placeholder="e.g. Maria (Event Manager)">
+        </div>
+      </div>
+      <button class="btn" type="submit">Add location</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

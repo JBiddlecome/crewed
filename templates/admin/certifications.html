@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Certifications — Crewed{% endblock %}
+{% block heading %}Certifications{% endblock %}
+{% block subheading %}<div class="sub">Clients can require these on positions; employees add them to their profiles.</div>{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Catalog</h2>
+    {% for c in certifications %}
+      <div style="padding:8px 0;border-bottom:1px solid var(--line)" class="strong">{{ c.name }}</div>
+    {% else %}<p style="color:var(--muted)">None yet.</p>{% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Add a certification</h2>
+    <form method="post" action="/admin/certifications">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" placeholder="e.g. Food Handler Card" required>
+      </div>
+      <button class="btn" type="submit">Add</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

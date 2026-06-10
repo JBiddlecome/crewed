@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Worker sign up — Crewed{% endblock %}
+{% block bodyclass %}auth{% endblock %}
+{% block public %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="brand" href="/">Crewed<span class="dot">.</span></a>
+    <h1>Find shifts that fit your life</h1>
+    <p class="sub">Create your worker profile</p>
+    <form method="post" action="/signup/employee">
+      <div class="form-row">
+        <div class="field">
+          <label for="first_name">First name</label>
+          <input id="first_name" name="first_name" required>
+        </div>
+        <div class="field">
+          <label for="last_name">Last name</label>
+          <input id="last_name" name="last_name" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" type="tel">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="city">City</label>
+          <input id="city" name="city">
+        </div>
+        <div class="field">
+          <label for="state">State</label>
+          <select id="state" name="state">
+            <option value="">—</option>
+            {% for code, name in states %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="zip">ZIP</label>
+          <input id="zip" name="zip">
+        </div>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" minlength="8" required>
+        <div class="hint">At least 8 characters</div>
+      </div>
+      <button class="btn btn-block btn-lg" type="submit">Create profile</button>
+    </form>
+    <p class="auth-alt">Hiring instead? <a href="/signup/client">Business sign up</a><br>
+    Already have an account? <a href="/login">Sign in</a></p>
+  </div>
+</div>
+{% endblock %}

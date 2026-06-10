@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Clients — Crewed{% endblock %}
+{% block heading %}Clients{% endblock %}
+{% block content %}
+
+<div class="card">
+  {% if clients %}
+  <table class="table">
+    <thead><tr><th>Company</th><th>Locations</th><th>Positions</th><th>Shifts</th><th>Markup</th><th></th></tr></thead>
+    <tbody>
+      {% for c in clients %}
+      <tr>
+        <td class="strong">{{ c.name }}</td>
+        <td>{{ c.locations|length }}</td>
+        <td>{{ c.positions|length }}</td>
+        <td>{{ c.shifts|length }}</td>
+        <td>{% if c.markup_override is not none %}{{ c.markup_override|round(0)|int }}% <span class="chip">override</span>{% else %}<span style="color:var(--muted)">global</span>{% endif %}</td>
+        <td class="actions"><a class="btn btn-ghost btn-sm" href="/admin/clients/{{ c.id }}">View</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">B</div><p>No clients yet — they can self-register from the landing page.</p></div>
+  {% endif %}
+</div>
+
+{% endblock %}

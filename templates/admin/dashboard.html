@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Admin — Crewed{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid grid-4">
+  <div class="stat"><div class="num">{{ stats.clients }}</div><div class="label">Clients</div></div>
+  <div class="stat seafoam"><div class="num">{{ stats.employees_active }}</div><div class="label">Active employees</div></div>
+  <div class="stat amber"><div class="num">{{ stats.employees_pending }}</div><div class="label">Pending approvals</div></div>
+  <div class="stat plum"><div class="num">{{ stats.open_shifts }}</div><div class="label">Open shifts</div></div>
+</div>
+
+<div class="grid grid-2" style="margin-top:20px">
+  <div class="card">
+    <h2>Employees waiting for approval</h2>
+    {% if pending_employees %}
+    <table class="table">
+      <thead><tr><th>Name</th><th>Location</th><th>Joined</th><th class="actions"></th></tr></thead>
+      <tbody>
+        {% for e in pending_employees %}
+        <tr>
+          <td class="strong">{{ e.name }}<div style="color:var(--muted);font-size:.8rem;font-weight:400">{{ e.email }}</div></td>
+          <td>{% if e.city %}{{ e.city }}, {{ e.state }}{% else %}—{% endif %}</td>
+          <td>{{ e.created_at|dt }}</td>
+          <td class="actions">
+            <form method="post" action="/admin/employees/{{ e.id }}/status">
+              <input type="hidden" name="new_status" value="active">
+              <button class="btn btn-sm" type="submit">Approve</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="mark">✓</div><p>No one waiting.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Recently posted shifts</h2>
+    {% if recent_shifts %}
+    <table class="table">
+      <thead><tr><th>Date</th><th>Client</th><th>Position</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for s in recent_shifts %}
+        <tr>
+          <td>{{ s.shift_date|dt }}</td>
+          <td>{{ s.company.name }}</td>
+          <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+          <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><p>No shifts yet.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

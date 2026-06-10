@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Crewed — On-demand hospitality staffing{% endblock %}
+{% block public %}
+
+<nav class="public-nav">
+  <a class="brand" href="/">Crewed<span class="dot">.</span></a>
+  <div class="links">
+    <a class="btn btn-ghost btn-sm" href="/login">Sign in</a>
+    <a class="btn btn-sm" href="/signup/client">Get started</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div>
+    <h1>Staff your next shift in <em>minutes</em>, not days.</h1>
+    <p class="lede">
+      Crewed connects hospitality businesses with qualified, vetted crew.
+      Post a shift with your own rates, and the right people — with the right
+      certifications — pick it up.
+    </p>
+    <div class="ctas">
+      <a class="btn btn-lg" href="/signup/client">I need staff</a>
+      <a class="btn btn-soft btn-lg" href="/signup/employee">I want shifts</a>
+    </div>
+  </div>
+  <div class="hero-art">
+    <div class="hero-blob"></div>
+    <div class="mock-card mock-1">
+      <div class="mc-row">
+        <div>
+          <div class="mc-title">Banquet Server</div>
+          <div class="mc-sub">Sat, Jun 20 · 4:00 PM – 10:30 PM</div>
+        </div>
+        <span class="badge badge-open">Open</span>
+      </div>
+      <div class="mc-row" style="margin-top:12px">
+        <span class="chip">Food Handler Card</span>
+        <span class="rate">$22.50<small>/hr</small></span>
+      </div>
+    </div>
+    <div class="mock-card mock-2">
+      <div class="mc-row">
+        <div>
+          <div class="mc-title">Bartender</div>
+          <div class="mc-sub">Sun, Jun 21 · 6:00 PM – 12:00 AM</div>
+        </div>
+        <span class="badge badge-confirmed">Confirmed</span>
+      </div>
+      <div class="mc-row" style="margin-top:12px">
+        <span class="chip">Alcohol Service</span>
+        <span class="rate">$26.00<small>/hr</small></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feature-band">
+  <div class="inner">
+    <h2>Built for both sides of the shift</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="dot-row"><span style="background:#f87c50"></span><span style="background:#fbbc66"></span></div>
+        <h3>Set your own rates</h3>
+        <p>Businesses choose what to pay per position — with built-in minimum wage protection based on each location's address, and transparent billing with a preset markup.</p>
+      </div>
+      <div class="feature">
+        <div class="dot-row"><span style="background:#8ec5bf"></span><span style="background:#f87c50"></span></div>
+        <h3>Only qualified crew</h3>
+        <p>Shifts only go to workers whose positions and certifications match your requirements. No surprises when the shift starts.</p>
+      </div>
+      <div class="feature">
+        <div class="dot-row"><span style="background:#fbbc66"></span><span style="background:#8ec5bf"></span></div>
+        <h3>Hours, handled</h3>
+        <p>Crew submit hours from their phone, businesses approve in one tap, and everything is ready for payroll and invoicing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">© Crewed — flexible staffing, done right.</footer>
+
+{% endblock %}

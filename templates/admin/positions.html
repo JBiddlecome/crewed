@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Positions — Crewed{% endblock %}
+{% block heading %}Position Catalog{% endblock %}
+{% block subheading %}<div class="sub">The master list clients choose from when they set up their staffing.</div>{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Catalog</h2>
+    <table class="table">
+      <thead><tr><th>Position</th><th>In use</th><th class="actions"></th></tr></thead>
+      <tbody>
+        {% for p in positions %}
+        <tr>
+          <td class="strong">{{ p.name }}
+            {% if p.description %}<div style="color:var(--muted);font-size:.8rem;font-weight:400">{{ p.description }}</div>{% endif %}
+          </td>
+          <td>{% if usage[p.id] %}<span class="chip">{{ usage[p.id] }} uses</span>{% else %}<span style="color:var(--muted)">unused</span>{% endif %}</td>
+          <td class="actions">
+            {% if not usage[p.id] %}
+            <form method="post" action="/admin/positions/{{ p.id }}/delete" onsubmit="return confirm('Delete {{ p.name }}?')">
+              <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Add a position</h2>
+    <form method="post" action="/admin/positions">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" required>
+      </div>
+      <div class="field">
+        <label for="description">Description <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+        <textarea id="description" name="description" rows="2"></textarea>
+      </div>
+      <button class="btn" type="submit">Add to catalog</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

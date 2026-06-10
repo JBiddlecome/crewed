@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Crewed{% endblock %}
+{% block bodyclass %}auth{% endblock %}
+{% block public %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="brand" href="/">Crewed<span class="dot">.</span></a>
+    <h1>Welcome back</h1>
+    <p class="sub">Sign in to your account</p>
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ request.query_params.get('next', '') }}">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required>
+      </div>
+      <button class="btn btn-block btn-lg" type="submit">Sign in</button>
+    </form>
+    <p class="auth-alt">
+      New here? <a href="/signup/client">Business sign up</a> · <a href="/signup/employee">Worker sign up</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

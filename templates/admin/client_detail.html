@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ company.name }} — Crewed{% endblock %}
+{% block heading %}{{ company.name }}{% endblock %}
+{% block subheading %}<div class="sub">Client since {{ company.created_at|dt }}{% if company.phone %} · {{ company.phone }}{% endif %}</div>{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Billing markup</h2>
+    <p class="card-note">Bill rate = pay rate + markup. Global default is {{ global_markup }}%.</p>
+    <form class="inline-form" method="post" action="/admin/clients/{{ company.id }}/markup">
+      <input type="number" name="markup_override" step="0.5" min="0" placeholder="{{ global_markup }}"
+             value="{{ company.markup_override if company.markup_override is not none else '' }}">
+      <span style="color:var(--muted)">%</span>
+      <button class="btn btn-sm" type="submit">Save</button>
+    </form>
+    <p class="card-note" style="margin-top:8px">Leave blank to use the global markup. Currently effective: <strong>{{ markup|round(1) }}%</strong></p>
+  </div>
+
+  <div class="card">
+    <h2>Portal users</h2>
+    {% for u in company.users %}
+      <div style="padding:6px 0;border-bottom:1px solid var(--line)">
+        <span class="strong">{{ u.name }}</span> · <span style="color:var(--muted)">{{ u.email }}</span>
+      </div>
+    {% else %}<p style="color:var(--muted)">No users.</p>{% endfor %}
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Locations</h2>
+    {% if company.locations %}
+    <table class="table">
+      <thead><tr><th>Name</th><th>City</th><th>State</th><th>Min wage</th></tr></thead>
+      <tbody>
+        {% for loc in company.locations %}
+        <tr>
+          <td class="strong">{{ loc.name }}</td>
+          <td>{{ loc.city }}</td>
+          <td>{{ loc.state }}</td>
+          <td>{{ wage(db, loc.state)|money }}/hr</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p style="color:var(--muted)">No locations.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Positions &amp; rates</h2>
+    {% if company.positions %}
+    <table class="table">
+      <thead><tr><th>Position</th><th>Pay</th><th>Required certs</th></tr></thead>
+      <tbody>
+        {% for cp in company.positions %}
+        <tr>
+          <td class="strong">{{ cp.position.name }}</td>
+          <td>{{ cp.pay_rate|money }}/hr</td>
+          <td>{% for c in cp.certs %}<span class="chip">{{ c.certification.name }}</span>{% else %}—{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p style="color:var(--muted)">No positions.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Recent shifts</h2>
+  {% if shifts %}
+  <table class="table">
+    <thead><tr><th>Date</th><th>Position</th><th>Location</th><th>Pay</th><th>Bill</th><th>Staffed</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in shifts %}
+      <tr>
+        <td>{{ s.shift_date|dt }}</td>
+        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+        <td>{{ s.location.name }}</td>
+        <td>{{ s.pay_rate|money }}</td>
+        <td>{{ s.bill_rate|money }}</td>
+        <td>{{ s.confirmed_count }}/{{ s.headcount }}</td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p style="color:var(--muted)">No shifts yet.</p>{% endif %}
+</div>
+
+{% endblock %}

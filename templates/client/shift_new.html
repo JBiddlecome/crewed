@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Post a shift — Crewed{% endblock %}
+{% block heading %}Post a shift{% endblock %}
+{% block subheading %}<div class="sub">Qualified crew see it the moment you post.</div>{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:640px">
+  <form method="post" action="/client/shifts/new">
+    <div class="form-row">
+      <div class="field">
+        <label for="shift-location">Location</label>
+        <select id="shift-location" name="location_id" required>
+          {% for loc in company.locations %}
+          <option value="{{ loc.id }}" data-minwage="{{ location_wages[loc.id] }}">{{ loc.name }} — {{ loc.city }}, {{ loc.state }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="shift-position">Position</label>
+        <select id="shift-position" name="client_position_id" required>
+          <option value="" data-rate="">Choose…</option>
+          {% for cp in company.positions %}
+          <option value="{{ cp.id }}" data-rate="{{ cp.pay_rate }}">{{ cp.position.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="shift_date">Date</label>
+        <input id="shift_date" name="shift_date" type="date" min="{{ today }}" required>
+      </div>
+      <div class="field">
+        <label for="start_time">Start</label>
+        <input id="start_time" name="start_time" type="time" required>
+      </div>
+      <div class="field">
+        <label for="end_time">End</label>
+        <input id="end_time" name="end_time" type="time" required>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="headcount">How many people?</label>
+        <input id="headcount" name="headcount" type="number" min="1" value="1" required>
+      </div>
+      <div class="field">
+        <label for="shift-pay">Pay rate ($/hr)</label>
+        <input id="shift-pay" name="pay_rate" type="number" step="0.25" min="0" required
+               data-bill-source data-markup="{{ markup }}" data-bill-target="#bill-preview">
+        <div class="hint" id="wage-hint"></div>
+        <div class="hint">Billed to you: <strong id="bill-preview">—</strong> (pay + {{ markup|round(0)|int }}% markup)</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="notes">Notes for the crew <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+      <textarea id="notes" name="notes" rows="3" placeholder="Check in at the loading dock, ask for Maria…"></textarea>
+    </div>
+    <button class="btn btn-lg" type="submit">Post shift</button>
+    <a class="btn btn-ghost btn-lg" href="/client/shifts">Cancel</a>
+  </form>
+</div>
+
+{% endblock %}

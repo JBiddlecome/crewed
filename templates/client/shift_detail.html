@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Shift — Crewed{% endblock %}
+{% block heading %}{{ shift.position.name }}{% if shift.headcount > 1 %} ×{{ shift.headcount }}{% endif %}{% endblock %}
+{% block subheading %}<div class="sub">{{ shift.shift_date|dt }} · {{ shift.start_time }}–{{ shift.end_time }} · {{ shift.location.name }}</div>{% endblock %}
+{% block actions %}
+  {% if shift.status in ('open', 'filled') %}
+  <form method="post" action="/client/shifts/{{ shift.id }}/cancel" onsubmit="return confirm('Cancel this shift and release all crew?')">
+    <button class="btn btn-danger" type="submit">Cancel shift</button>
+  </form>
+  {% endif %}
+{% endblock %}
+{% block content %}
+
+<div class="grid grid-4">
+  <div class="stat"><div class="num">{{ shift.pay_rate|money }}</div><div class="label">Pay rate /hr</div></div>
+  <div class="stat plum"><div class="num">{{ shift.bill_rate|money }}</div><div class="label">Billed to you /hr</div></div>
+  <div class="stat seafoam"><div class="num">{{ shift.confirmed_count }}/{{ shift.headcount }}</div><div class="label">Confirmed crew</div></div>
+  <div class="stat amber"><div class="num"><span class="badge badge-{{ shift.status }}">{{ shift.status }}</span></div><div class="label">{{ shift.scheduled_hours }} scheduled hours</div></div>
+</div>
+
+<div class="grid grid-2" style="margin-top:20px">
+  <div class="card">
+    <h2>What the crew sees</h2>
+    <div class="detail-row"><span class="k">Parking</span><span class="v {{ 'unset' if not details.parking }}">{{ details.parking or 'Not set' }}</span></div>
+    <div class="detail-row"><span class="k">Check in at</span><span class="v {{ 'unset' if not details.check_in_location }}">{{ details.check_in_location or 'Not set' }}</span></div>
+    <div class="detail-row"><span class="k">Check in with</span><span class="v {{ 'unset' if not details.check_in_contact }}">{{ details.check_in_contact or 'Not set' }}</span></div>
+    {% if shift.notes %}<div class="detail-row"><span class="k">Notes</span><span class="v">{{ shift.notes }}</span></div>{% endif %}
+    {% if cp and (cp.certs or cp.requirements) %}
+    <div class="detail-row"><span class="k">Requirements</span>
+      <span class="v">{% for c in cp.certs %}<span class="chip">{{ c.certification.name }}</span>{% endfor %}
+      {% if cp.requirements %} {{ cp.requirements }}{% endif %}</span></div>
+    {% endif %}
+    <p class="card-note" style="margin:10px 0 0">Details come from this shift's overrides, then the <a href="/client/days/{{ shift.location_id }}/{{ shift.shift_date.isoformat() }}">date's details</a>, then the location defaults.</p>
+  </div>
+
+  <div class="card">
+    <h2>Override details for this shift only</h2>
+    <p class="card-note">Leave a field blank to inherit from the date/location.</p>
+    <form method="post" action="/client/shifts/{{ shift.id }}/details">
+      <div class="field">
+        <label for="parking">Parking</label>
+        <textarea id="parking" name="parking" rows="2">{{ shift.parking or '' }}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="check_in_location">Where to check in</label>
+          <input id="check_in_location" name="check_in_location" value="{{ shift.check_in_location or '' }}">
+        </div>
+        <div class="field">
+          <label for="check_in_contact">Check in with</label>
+          <input id="check_in_contact" name="check_in_contact" value="{{ shift.check_in_contact or '' }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="notes">Shift notes</label>
+        <textarea id="notes" name="notes" rows="2">{{ shift.notes or '' }}</textarea>
+      </div>
+      <button class="btn" type="submit">Save shift details</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px">
+  <h2>Crew</h2>
+  {% if applicants %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Contact</th><th>Qualified</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+    <tbody>
+      {% for a, q in applicants %}
+      <tr>
+        <td class="strong">{{ a.employee.name }}</td>
+        <td>{{ a.employee.phone or a.employee.email }}</td>
+        <td>
+          {% if q[0] %}<span class="badge badge-approved">Yes</span>
+          {% else %}{% for r in q[1] %}<span class="chip chip-warn">{{ r }}</span>{% endfor %}{% endif %}
+        </td>
+        <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
+        <td class="actions">
+          {% if a.status == 'requested' %}
+          <form class="inline-form" method="post" action="/client/assignments/{{ a.id }}/confirm">
+            <button class="btn btn-sm" type="submit">Confirm</button>
+          </form>
+          <form class="inline-form" method="post" action="/client/assignments/{{ a.id }}/decline">
+            <button class="btn btn-ghost btn-sm" type="submit">Decline</button>
+          </form>
+          {% endif %}
+          <form class="inline-form" method="post" action="/client/assignments/{{ a.id }}/message">
+            <input type="text" name="body" placeholder="Message {{ a.employee.first_name }}…" required style="width:170px">
+            <button class="btn btn-soft btn-sm" type="submit">Send</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">…</div><p>No applications yet — qualified crew can see this shift now.</p></div>
+  {% endif %}
+</div>
+
+{% endblock %}

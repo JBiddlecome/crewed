@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Employees — Crewed{% endblock %}
+{% block heading %}Employees{% endblock %}
+{% block actions %}
+<div style="display:flex;gap:8px">
+  <a class="btn {{ 'btn-soft' if filter_status == '' else 'btn-ghost' }} btn-sm" href="/admin/employees">All</a>
+  <a class="btn {{ 'btn-soft' if filter_status == 'pending' else 'btn-ghost' }} btn-sm" href="/admin/employees?status=pending">Pending</a>
+  <a class="btn {{ 'btn-soft' if filter_status == 'active' else 'btn-ghost' }} btn-sm" href="/admin/employees?status=active">Active</a>
+  <a class="btn {{ 'btn-soft' if filter_status == 'disabled' else 'btn-ghost' }} btn-sm" href="/admin/employees?status=disabled">Disabled</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div class="card">
+  {% if employees %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Contact</th><th>Location</th><th>Positions</th><th>Status</th><th class="actions"></th></tr></thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td class="strong">{{ e.name }}</td>
+        <td>{{ e.email }}{% if e.phone %}<div style="color:var(--muted);font-size:.8rem">{{ e.phone }}</div>{% endif %}</td>
+        <td>{% if e.city %}{{ e.city }}, {{ e.state }}{% else %}—{% endif %}</td>
+        <td>{% for ep in e.positions %}<span class="chip">{{ ep.position.name }}</span>{% else %}—{% endfor %}</td>
+        <td><span class="badge badge-{{ e.status }}">{{ e.status }}</span></td>
+        <td class="actions">
+          {% if e.status == 'pending' %}
+          <form class="inline-form" method="post" action="/admin/employees/{{ e.id }}/status">
+            <input type="hidden" name="new_status" value="active">
+            <button class="btn btn-sm" type="submit">Approve</button>
+          </form>
+          {% elif e.status == 'active' %}
+          <form class="inline-form" method="post" action="/admin/employees/{{ e.id }}/status" onsubmit="return confirm('Deactivate {{ e.name }}?')">
+            <input type="hidden" name="new_status" value="disabled">
+            <button class="btn btn-danger btn-sm" type="submit">Deactivate</button>
+          </form>
+          {% else %}
+          <form class="inline-form" method="post" action="/admin/employees/{{ e.id }}/status">
+            <input type="hidden" name="new_status" value="active">
+            <button class="btn btn-soft btn-sm" type="submit">Reactivate</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">E</div><p>No employees{% if filter_status %} with status “{{ filter_status }}”{% endif %}.</p></div>
+  {% endif %}
+</div>
+
+{% endblock %}

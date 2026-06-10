@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Find Shifts — Crewed{% endblock %}
+{% block heading %}Find Shifts{% endblock %}
+{% block subheading %}<div class="sub">Shifts you qualify for, ready to pick up.</div>{% endblock %}
+{% block content %}
+
+{% if eligible %}
+  {% for shift, ok, reasons in eligible %}
+  <div class="shift-card">
+    <div class="date-block">
+      <div class="mon">{{ shift.shift_date.strftime('%b') }}</div>
+      <div class="day">{{ shift.shift_date.day }}</div>
+    </div>
+    <div class="body">
+      <div class="title">{{ shift.position.name }} — {{ shift.company.name }}</div>
+      <div class="meta">{{ shift.start_time }}–{{ shift.end_time }} · {{ shift.location.name }}, {{ shift.location.city }}, {{ shift.location.state }} · {{ shift.scheduled_hours }} hrs</div>
+      {% set dd = details[shift.id] %}
+      {% if dd.check_in_location or dd.check_in_contact %}<div class="meta">Check in: {{ dd.check_in_location or '' }}{% if dd.check_in_location and dd.check_in_contact %} · {% endif %}{{ dd.check_in_contact or '' }}</div>{% endif %}
+      {% if dd.parking %}<div class="meta">Parking: {{ dd.parking }}</div>{% endif %}
+      {% if shift.notes %}<div class="meta">{{ shift.notes }}</div>{% endif %}
+    </div>
+    <div class="pay">
+      <div class="rate">{{ shift.pay_rate|money }}<small>/hr</small></div>
+      <form method="post" action="/employee/shifts/{{ shift.id }}/apply" style="margin-top:8px">
+        <button class="btn btn-sm" type="submit">Apply</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card">
+  <div class="empty">
+    <div class="mark">C</div>
+    <p>No open shifts match your profile right now.</p>
+    <p style="font-size:.85rem">Adding more <a href="/employee/profile">positions and certifications</a> unlocks more shifts.</p>
+  </div>
+</div>
+{% endif %}
+
+{% if other %}
+<div class="section-label">Needs more qualifications</div>
+{% for shift, ok, reasons in other %}
+<div class="shift-card dim">
+  <div class="date-block">
+    <div class="mon">{{ shift.shift_date.strftime('%b') }}</div>
+    <div class="day">{{ shift.shift_date.day }}</div>
+  </div>
+  <div class="body">
+    <div class="title">{{ shift.position.name }} — {{ shift.company.name }}</div>
+    <div class="meta">{{ shift.start_time }}–{{ shift.end_time }} · {{ shift.location.city }}, {{ shift.location.state }}</div>
+    <div style="margin-top:4px">{% for r in reasons %}<span class="chip chip-warn">{{ r }}</span>{% endfor %}</div>
+  </div>
+  <div class="pay"><div class="rate">{{ shift.pay_rate|money }}<small>/hr</small></div></div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Home — Crewed{% endblock %}
+{% block heading %}Hi, {{ user.first_name }}{% endblock %}
+{% block content %}
+
+{% if user.status == 'pending' %}
+<div class="card" style="border-left:4px solid var(--amber)">
+  <h2>Your account is being reviewed</h2>
+  <p style="margin:0;color:var(--muted)">Build out your <a href="/employee/profile">profile</a> — positions and certifications — so you're ready to apply the moment you're approved.</p>
+</div>
+{% endif %}
+
+<div class="grid grid-4">
+  <div class="stat"><div class="num">{{ open_count }}</div><div class="label">Open shifts right now</div></div>
+  <div class="stat seafoam"><div class="num">{{ confirmed_count }}</div><div class="label">Confirmed upcoming</div></div>
+  <div class="stat amber"><div class="num">{{ pending }}</div><div class="label">Applications waiting</div></div>
+  <div class="stat plum"><div class="num">{{ unread }}</div><div class="label"><a href="/employee/notifications">Unread notifications</a></div></div>
+</div>
+
+{% if next_shift %}
+<div class="card" style="margin-top:20px">
+  <h2>Your next shift</h2>
+  <div class="shift-card" style="box-shadow:none;padding:0;margin:0">
+    <div class="date-block">
+      <div class="mon">{{ next_shift.shift.shift_date.strftime('%b') }}</div>
+      <div class="day">{{ next_shift.shift.shift_date.day }}</div>
+    </div>
+    <div class="body">
+      <div class="title">{{ next_shift.shift.position.name }} — {{ next_shift.shift.company.name }}</div>
+      <div class="meta">{{ next_shift.shift.start_time }}–{{ next_shift.shift.end_time }} · {{ next_shift.shift.location.name }}, {{ next_shift.shift.location.city }}, {{ next_shift.shift.location.state }}</div>
+      {% if next_details and (next_details.check_in_location or next_details.check_in_contact) %}
+      <div class="meta">Check in: {{ next_details.check_in_location or '' }}{% if next_details.check_in_location and next_details.check_in_contact %} · {% endif %}{{ next_details.check_in_contact or '' }}</div>
+      {% endif %}
+      {% if next_details and next_details.parking %}<div class="meta">Parking: {{ next_details.parking }}</div>{% endif %}
+      {% if next_shift.shift.notes %}<div class="meta">{{ next_shift.shift.notes }}</div>{% endif %}
+    </div>
+    <div class="pay"><div class="rate">{{ next_shift.shift.pay_rate|money }}<small>/hr</small></div></div>
+  </div>
+</div>
+{% endif %}
+
+{% if not profile_ready %}
+<div class="card" style="margin-top:20px">
+  <h2>Finish your profile</h2>
+  <p style="color:var(--muted)">Add the positions you can work so we can match you with shifts.</p>
+  <a class="btn" href="/employee/profile">Add positions</a>
+</div>
+{% else %}
+<div style="margin-top:20px">
+  <a class="btn btn-lg" href="/employee/shifts">Find shifts</a>
+</div>
+{% endif %}
+
+{% endblock %}

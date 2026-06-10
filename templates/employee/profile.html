@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}My Profile — Crewed{% endblock %}
+{% block heading %}My Profile{% endblock %}
+{% block subheading %}<div class="sub">Your positions and certifications decide which shifts you can pick up.</div>{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <h2>Positions I can work</h2>
+      {% if user.positions %}
+        <div style="margin-bottom:14px">
+        {% for ep in user.positions %}
+          <form class="inline-form" method="post" action="/employee/profile/positions/{{ ep.id }}/delete" style="margin:0 6px 6px 0">
+            <span class="chip">{{ ep.position.name }}</span>
+            <button class="btn btn-ghost btn-sm" type="submit" title="Remove">×</button>
+          </form>
+        {% endfor %}
+        </div>
+      {% else %}
+        <p style="color:var(--muted)">No positions yet — add what you can work.</p>
+      {% endif %}
+      {% if available_positions %}
+      <form class="inline-form" method="post" action="/employee/profile/positions">
+        <select name="position_id" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px">
+          {% for p in available_positions %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-sm" type="submit">Add</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>My certifications</h2>
+      {% if user.certifications %}
+      <table class="table">
+        <thead><tr><th>Certification</th><th>Expires</th><th></th></tr></thead>
+        <tbody>
+          {% for ec in user.certifications %}
+          <tr>
+            <td class="strong">{{ ec.certification.name }}</td>
+            <td>
+              {% if ec.expires_on %}
+                {% if ec.expires_on < today %}<span class="badge badge-cancelled">Expired</span>{% else %}{{ ec.expires_on|dt }}{% endif %}
+              {% else %}<span style="color:var(--muted)">No expiry</span>{% endif %}
+            </td>
+            <td class="actions">
+              <form method="post" action="/employee/profile/certs/{{ ec.id }}/delete">
+                <button class="btn btn-ghost btn-sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted)">No certifications added yet.</p>
+      {% endif %}
+      <form method="post" action="/employee/profile/certs" style="margin-top:10px">
+        <div class="form-row">
+          <div class="field">
+            <label>Certification</label>
+            <select name="certification_id">
+              {% for c in certifications %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Expires <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+            <input type="date" name="expires_on">
+          </div>
+        </div>
+        <button class="btn btn-sm" type="submit">Add certification</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Contact info</h2>
+    <form method="post" action="/employee/profile/info">
+      <div class="field">
+        <label>Phone</label>
+        <input name="phone" type="tel" value="{{ user.phone or '' }}">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>City</label>
+          <input name="city" value="{{ user.city or '' }}">
+        </div>
+        <div class="field">
+          <label>State</label>
+          <select name="state">
+            <option value="">—</option>
+            {% for code, name in states %}<option value="{{ code }}" {{ 'selected' if user.state == code }}>{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>ZIP</label>
+          <input name="zip" value="{{ user.zip or '' }}">
+        </div>
+      </div>
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

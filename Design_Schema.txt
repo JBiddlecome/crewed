@@ -1,0 +1,15 @@
+/* CVS */
+
+584052,8ec5bf,fbbc66,f87c50
+
+/* CVS with # */
+
+#584052,#8ec5bf,#fbbc66,#f87c50
+
+/* Array */
+
+["584052", "8ec5bf", "fbbc66", "f87c50"]
+
+/* Array with # */
+
+["#584052", "#8ec5bf", "#fbbc66", "#f87c50"]
