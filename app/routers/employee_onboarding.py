@@ -7,13 +7,14 @@ import json as _json
 from datetime import datetime
 
 from fastapi import Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from .. import models
 from ..auth import require
 from ..db import get_db
 from ..helpers import get_past_due_assignment, unread_count
+from ..pdf_forms import employer_info, fill_i9, fill_w4
 from ..templating import flash, templates
 
 
@@ -139,6 +140,7 @@ def register_onboarding_routes(router):
         wizard_data = {
             "first_name": form_data.get("first_name", "").strip(),
             "last_name": form_data.get("last_name", "").strip(),
+            "ssn": form_data.get("ssn", "").strip(),
             "ssn_last4": form_data.get("ssn_last4", "").strip(),
             "address": form_data.get("address", "").strip(),
             "city_state_zip": form_data.get("city_state_zip", "").strip(),
@@ -268,6 +270,42 @@ def register_onboarding_routes(router):
         db.commit()
         flash(request, "I-9 completed and saved!")
         return RedirectResponse("/employee/onboarding", status_code=303)
+
+    # ── Official PDF downloads (filled W-4 / I-9) ───────────────────────────
+
+    @router.get("/onboarding/wizard/{kind}/download")
+    def wizard_pdf_download(
+        kind: str,
+        request: Request,
+        user: models.User = Depends(require("employee")),
+        db: Session = Depends(get_db),
+    ):
+        if kind not in ("w4", "i9"):
+            return RedirectResponse("/employee/onboarding", status_code=303)
+        doc = (
+            db.query(models.OnboardingDocument)
+            .filter_by(doc_type=f"{kind}_wizard")
+            .first()
+        )
+        rec = (
+            db.query(models.EmployeeOnboarding)
+            .filter_by(employee_id=user.id, document_id=doc.id)
+            .first()
+            if doc
+            else None
+        )
+        if not rec or not rec.wizard_data:
+            flash(request, "Complete the wizard first — then you can download the filled form.", "warning")
+            return RedirectResponse(f"/employee/onboarding/wizard/{kind}", status_code=303)
+        data = _json.loads(rec.wizard_data)
+        employer = employer_info(db)
+        pdf = fill_w4(data, employer) if kind == "w4" else fill_i9(data, employer)
+        filename = f"{'W-4' if kind == 'w4' else 'I-9'}_{user.last_name}_{user.first_name}.pdf"
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     # ── PDF Document Completion ──────────────────────────────────────────────
 

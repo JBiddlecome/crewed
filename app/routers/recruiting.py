@@ -392,6 +392,48 @@ def employee_onboarding_detail(
     )
 
 
+@router.get("/{employee_id}/wizard/{kind}.pdf")
+def admin_wizard_pdf(
+    employee_id: int,
+    kind: str,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import Response
+
+    from ..pdf_forms import employer_info, fill_i9, fill_w4
+
+    emp = db.query(models.User).filter_by(id=employee_id, role="employee").first()
+    if not emp or kind not in ("w4", "i9"):
+        flash(request, "Not found.", "error")
+        return RedirectResponse("/admin/recruiting", status_code=303)
+    doc = (
+        db.query(models.OnboardingDocument)
+        .filter_by(doc_type=f"{kind}_wizard")
+        .first()
+    )
+    rec = (
+        db.query(models.EmployeeOnboarding)
+        .filter_by(employee_id=emp.id, document_id=doc.id)
+        .first()
+        if doc
+        else None
+    )
+    if not rec or not rec.wizard_data:
+        flash(request, f"{emp.name} hasn't completed the {kind.upper()} wizard yet.", "warning")
+        return RedirectResponse(f"/admin/recruiting/{emp.id}", status_code=303)
+    data = json.loads(rec.wizard_data)
+    employer = employer_info(db)
+    pdf = fill_w4(data, employer) if kind == "w4" else fill_i9(data, employer)
+    filename = f"{'W-4' if kind == 'w4' else 'I-9'}_{emp.last_name}_{emp.first_name}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/{employee_id}/activate")
 def activate_employee(
     employee_id: int,

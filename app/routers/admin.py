@@ -458,7 +458,13 @@ def settings(
     return templates.TemplateResponse(
         request,
         "admin/settings.html",
-        {"user": user, "markup": get_setting(db, "markup_percent", "55")},
+        {
+            "user": user,
+            "markup": get_setting(db, "markup_percent", "55"),
+            "employer_name": get_setting(db, "employer_name", ""),
+            "employer_address": get_setting(db, "employer_address", ""),
+            "employer_ein": get_setting(db, "employer_ein", ""),
+        },
     )
 
 
@@ -466,6 +472,9 @@ def settings(
 def save_settings(
     request: Request,
     markup_percent: float = Form(...),
+    employer_name: str = Form(""),
+    employer_address: str = Form(""),
+    employer_ein: str = Form(""),
     user: models.User = Depends(require("admin")),
     db: Session = Depends(get_db),
 ):
@@ -473,8 +482,11 @@ def save_settings(
         flash(request, "Markup must be non-negative.", "error")
     else:
         set_setting(db, "markup_percent", f"{markup_percent:g}")
+        set_setting(db, "employer_name", employer_name.strip())
+        set_setting(db, "employer_address", employer_address.strip())
+        set_setting(db, "employer_ein", employer_ein.strip())
         db.commit()
-        flash(request, f"Global markup set to {markup_percent:g}%.")
+        flash(request, "Settings saved.")
     return RedirectResponse("/admin/settings", status_code=303)
 
 

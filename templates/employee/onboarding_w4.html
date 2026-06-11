@@ -54,8 +54,15 @@
 {% endif %}
 
 <div class="irs-note">
-  <strong>IRS W-4 (2024)</strong> — Employee's Withholding Certificate. Complete this form so your employer can withhold the correct federal income tax from your pay. The information you provide is confidential and used only for payroll tax withholding purposes.
+  <strong>IRS W-4 (2026)</strong> — Employee's Withholding Certificate. Complete this form so your employer can withhold the correct federal income tax from your pay. The information you provide is confidential and used only for payroll tax withholding purposes.
 </div>
+
+{% if rec and rec.status == 'complete' %}
+<div class="irs-note" style="border-left:4px solid var(--seafoam-dark); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <span><strong>Completed{% if rec.completed_at %} {{ rec.completed_at.strftime('%b %d, %Y') }}{% endif %}.</strong> Your answers were placed onto the official IRS form.</span>
+  <a class="btn" href="/employee/onboarding/wizard/w4/download">Download W-4 (PDF)</a>
+</div>
+{% endif %}
 
 <!-- Step Indicators -->
 <div class="wizard-steps">
@@ -92,8 +99,8 @@
         <input class="input" name="city_state_zip" type="text" placeholder="Los Angeles, CA 90001" value="{{ data.get('city_state_zip','') }}">
       </div>
       <div>
-        <label class="label">Last 4 digits of SSN</label>
-        <input class="input" name="ssn_last4" type="text" maxlength="4" placeholder="XXXX" value="{{ data.get('ssn_last4','') }}" pattern="\d{4}">
+        <label class="label">Social Security Number *</label>
+        <input class="input" name="ssn" type="text" maxlength="11" placeholder="XXX-XX-XXXX" value="{{ data.get('ssn','') }}" pattern="\d{3}-?\d{2}-?\d{4}" required>
       </div>
     </div>
     <div style="margin-top:18px;">

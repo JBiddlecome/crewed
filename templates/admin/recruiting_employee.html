@@ -115,6 +115,11 @@
         {% endif %}
       {% elif item.document.doc_type in ('w4_wizard', 'i9_wizard') %}
         {% if rec and rec.wizard_data %}
+          {% set kind = 'w4' if item.document.doc_type == 'w4_wizard' else 'i9' %}
+          <div style="margin-bottom:12px">
+            <a class="btn btn-sm" href="/admin/recruiting/{{ employee.id }}/wizard/{{ kind }}.pdf">
+              Download official {{ 'W-4' if kind == 'w4' else 'I-9' }} (PDF)</a>
+          </div>
           <div class="wizard-data-wrap">
             {% set wdata = rec.wizard_data | from_json %}
             {% for k, v in wdata.items() %}

@@ -475,6 +475,39 @@ check("Employee position status is approved in db", ep.status == "approved")
 
 db_sess.close()
 
+# ---- Official W-4 / I-9 PDF generation ----
+
+from app.pdf_forms import fill_i9, fill_w4  # noqa: E402
+
+_employer = {"name": "Crewed Staffing LLC", "address": "100 Main St, LA, CA", "ein": "12-3456789"}
+_w4_pdf = fill_w4(
+    {
+        "first_name": "Jane", "last_name": "Doe", "ssn": "123-45-6789",
+        "address": "456 Oak Ave", "city_state_zip": "Los Angeles, CA 90001",
+        "filing_status": "Married", "multiple_jobs": "check_box",
+        "qualifying_children": "2", "other_dependents": "1",
+        "other_income": "1200", "deductions": "0", "extra_withholding": "50",
+        "signature": "Jane Doe", "sign_date": "2026-06-10",
+    },
+    _employer,
+)
+check("W-4 PDF generates", _w4_pdf[:5] == b"%PDF-" and len(_w4_pdf) > 50_000)
+
+_i9_pdf = fill_i9(
+    {
+        "first_name": "Jane", "middle_initial": "Q", "last_name": "Doe",
+        "address": "456 Oak Ave", "apt": "2B", "city": "Los Angeles",
+        "state": "CA", "zip": "90001", "dob": "1990-03-15", "ssn": "123-45-6789",
+        "email": "jane@example.com", "phone": "555-0100",
+        "citizenship_status": "work_authorized", "alien_reg_num": "A123456789",
+        "work_auth_expiry": "2027-09-30", "foreign_passport": "P9876543 (Canada)",
+        "signature": "Jane Doe", "sign_date": "2026-06-10",
+        "doc_list_a": "Employment Authorization Document (Form I-766)",
+    },
+    _employer,
+)
+check("I-9 PDF generates", _i9_pdf[:5] == b"%PDF-" and len(_i9_pdf) > 100_000)
+
 # Restore environment and monkeypatch
 os.environ["DATA_DIR"] = orig_env_data_dir
 employee_router.screen_candidate_for_position = orig_screen

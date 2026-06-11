@@ -67,6 +67,13 @@
   Federal law requires all employers to verify the identity and employment authorization of all persons hired for employment in the United States. This information is kept confidential.
 </div>
 
+{% if rec and rec.status == 'complete' %}
+<div class="uscis-note" style="border-left:4px solid var(--seafoam-dark); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <span><strong>Completed{% if rec.completed_at %} {{ rec.completed_at.strftime('%b %d, %Y') }}{% endif %}.</strong> Section 1 was placed onto the official USCIS form.</span>
+  <a class="btn" href="/employee/onboarding/wizard/i9/download">Download I-9 (PDF)</a>
+</div>
+{% endif %}
+
 <div class="wizard-steps">
   <div class="wizard-step active" id="step-tab-1" onclick="goStep(1)"><span class="wizard-step-num">1</span>Personal Info</div>
   <div class="wizard-step" id="step-tab-2" onclick="goStep(2)"><span class="wizard-step-num">2</span>Attestation</div>

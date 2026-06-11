@@ -12,6 +12,20 @@
       <input id="markup_percent" name="markup_percent" type="number" step="0.5" min="0" value="{{ markup }}" required>
       <div class="hint">Example: a $20.00/hr pay rate bills at <strong>${{ '%.2f' % (20 * (1 + markup|float / 100)) }}/hr</strong></div>
     </div>
+    <h2 style="margin-top:24px">Employer information</h2>
+    <p class="card-note">Printed on generated W-4s (employer block) and I-9s (Section 2 business name/address).</p>
+    <div class="field">
+      <label for="employer_name">Legal business name</label>
+      <input id="employer_name" name="employer_name" value="{{ employer_name }}" placeholder="Crewed Staffing LLC">
+    </div>
+    <div class="field">
+      <label for="employer_address">Business address</label>
+      <input id="employer_address" name="employer_address" value="{{ employer_address }}" placeholder="100 Main St, Los Angeles, CA 90001">
+    </div>
+    <div class="field">
+      <label for="employer_ein">EIN</label>
+      <input id="employer_ein" name="employer_ein" value="{{ employer_ein }}" placeholder="12-3456789">
+    </div>
     <button class="btn" type="submit">Save</button>
   </form>
 </div>
