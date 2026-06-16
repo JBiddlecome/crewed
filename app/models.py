@@ -65,6 +65,7 @@ class ClientCompany(Base):
     status = Column(String, default="active")   # active | prospect | inactive | terminated
     notes = Column(Text)
     markup_override = Column(Float)  # percent; null = use global setting
+    gusto_company_uuid = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     users = relationship("User", back_populates="company")
@@ -84,9 +85,13 @@ class User(Base):
     status = Column(String, default="active")  # active | pending | disabled
     client_id = Column(Integer, ForeignKey("client_company.id"))
     phone = Column(String)
+    address = Column(String)
     city = Column(String)
     state = Column(String)
     zip = Column(String)
+    dob = Column(Date)
+    hire_date = Column(Date)
+    gusto_employee_uuid = Column(String)
     profile_picture = Column(String)
     profile_picture_approved = Column(Boolean, default=False)
     resume_file = Column(String)

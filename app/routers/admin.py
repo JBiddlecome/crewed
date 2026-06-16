@@ -320,6 +320,29 @@ def set_employee_status(
     return RedirectResponse("/admin/employees", status_code=303)
 
 
+@router.post("/employees/{employee_id}/activate")
+def activate_employee(
+    employee_id: int,
+    request: Request,
+    hire_date: str = Form(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    emp = db.get(models.User, employee_id)
+    if not emp or emp.role != "employee":
+        flash(request, "Employee not found.", "error")
+        return RedirectResponse("/admin/employees", status_code=303)
+    try:
+        emp.hire_date = date.fromisoformat(hire_date)
+    except (ValueError, TypeError):
+        flash(request, "Invalid hire date.", "error")
+        return RedirectResponse("/admin/employees", status_code=303)
+    emp.status = "active"
+    db.commit()
+    flash(request, f"{emp.name} activated with hire date {emp.hire_date.strftime('%b %d, %Y')}.")
+    return RedirectResponse("/admin/employees", status_code=303)
+
+
 # ---------- Catalogs ----------
 
 @router.get("/positions")

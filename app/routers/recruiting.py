@@ -402,10 +402,10 @@ def admin_wizard_pdf(
 ):
     from fastapi.responses import Response
 
-    from ..pdf_forms import employer_info, fill_i9, fill_w4
+    from ..pdf_forms import employer_info, fill_de4, fill_i9, fill_w4
 
     emp = db.query(models.User).filter_by(id=employee_id, role="employee").first()
-    if not emp or kind not in ("w4", "i9"):
+    if not emp or kind not in ("w4", "i9", "de4"):
         flash(request, "Not found.", "error")
         return RedirectResponse("/admin/recruiting", status_code=303)
     doc = (
@@ -425,8 +425,18 @@ def admin_wizard_pdf(
         return RedirectResponse(f"/admin/recruiting/{emp.id}", status_code=303)
     data = json.loads(rec.wizard_data)
     employer = employer_info(db)
-    pdf = fill_w4(data, employer) if kind == "w4" else fill_i9(data, employer)
-    filename = f"{'W-4' if kind == 'w4' else 'I-9'}_{emp.last_name}_{emp.first_name}.pdf"
+    labels = {"w4": "W-4", "i9": "I-9", "de4": "DE-4"}
+    try:
+        if kind == "w4":
+            pdf = fill_w4(data, employer)
+        elif kind == "i9":
+            pdf = fill_i9(data, employer)
+        else:
+            pdf = fill_de4(data, employer)
+    except FileNotFoundError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse(f"/admin/recruiting/{emp.id}", status_code=303)
+    filename = f"{labels[kind]}_{emp.last_name}_{emp.first_name}.pdf"
     return Response(
         content=pdf,
         media_type="application/pdf",

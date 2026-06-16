@@ -4,12 +4,12 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# DATA_DIR holds the SQLite db and uploads. Locally it's ./data;
-# on Render point it at the persistent disk mount (e.g. /var/data).
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DB_PATH = DATA_DIR / "crewed.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 
 _secret_file = DATA_DIR / "secret_key.txt"
 if os.environ.get("SECRET_KEY"):

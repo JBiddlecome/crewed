@@ -84,10 +84,19 @@
         <td><span class="badge badge-{{ e.status }}">{{ e.status }}</span></td>
         <td class="actions">
           {% if e.status == 'pending' %}
-          <form class="inline-form" method="post" action="/admin/employees/{{ e.id }}/status">
-            <input type="hidden" name="new_status" value="active">
-            <button class="btn btn-sm" type="submit">Approve</button>
-          </form>
+          <button class="btn btn-sm" onclick="document.getElementById('activate-dialog-{{ e.id }}').showModal()">Activate Employee</button>
+          <dialog id="activate-dialog-{{ e.id }}" style="border:1.5px solid var(--border);border-radius:16px;padding:28px 32px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+            <form method="post" action="/admin/employees/{{ e.id }}/activate">
+              <div style="font-size:1rem;font-weight:700;margin-bottom:4px;">Activate {{ e.name }}</div>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:18px;">Set a hire date to activate this employee. This date will be used for payroll and HR records.</div>
+              <label class="label">Hire Date *</label>
+              <input class="input" type="date" name="hire_date" required style="margin-bottom:18px;">
+              <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">Cancel</button>
+                <button type="submit" class="btn">Activate</button>
+              </div>
+            </form>
+          </dialog>
           {% elif e.status == 'active' %}
           <form class="inline-form" method="post" action="/admin/employees/{{ e.id }}/status" onsubmit="return confirm('Deactivate {{ e.name }}?')">
             <input type="hidden" name="new_status" value="disabled">
