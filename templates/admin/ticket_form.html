@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% if ticket %}
+  {% block title %}Edit Ticket — Crewed{% endblock %}
+  {% block heading %}Edit Ticket{% endblock %}
+  {% block subheading %}<div class="sub">{{ ticket.title }}</div>{% endblock %}
+{% else %}
+  {% block title %}New Ticket — Crewed{% endblock %}
+  {% block heading %}New Ticket{% endblock %}
+{% endif %}
+
+{% block actions %}
+  <a class="btn btn-ghost" href="/admin/tickets">Cancel</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post"
+      action="{% if ticket %}/admin/tickets/{{ ticket.id }}/edit{% else %}/admin/tickets/new{% endif %}"
+      class="form-card">
+
+  <div class="form-section">
+    <h2 class="form-section-title">Ticket Details</h2>
+
+    <div class="field field-required">
+      <label for="title">Title</label>
+      <input id="title" name="title" type="text" required
+             value="{{ ticket.title if ticket else '' }}"
+             placeholder="Short description of the task or issue">
+    </div>
+
+    <div class="grid grid-2">
+      <div class="field field-required">
+        <label for="department">Department</label>
+        <select id="department" name="department" required>
+          <option value="">— Select department —</option>
+          {% set cur_dept = ticket.department if ticket else '' %}
+          {% for dept in departments %}
+            <option value="{{ dept }}" {% if cur_dept == dept %}selected{% endif %}>{{ dept }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field field-required">
+        <label for="priority">Priority</label>
+        <select id="priority" name="priority" required>
+          {% set cur_p = ticket.priority if ticket else 'yellow' %}
+          <option value="green"  {% if cur_p == 'green'  %}selected{% endif %}>🟢 Green — Low</option>
+          <option value="yellow" {% if cur_p == 'yellow' %}selected{% endif %}>🟡 Yellow — Medium</option>
+          <option value="red"    {% if cur_p == 'red'    %}selected{% endif %}>🔴 Red — High</option>
+        </select>
+      </div>
+    </div>
+
+    {% if ticket %}
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        {% set cur_s = ticket.status %}
+        <option value="open"        {% if cur_s == 'open'        %}selected{% endif %}>Open</option>
+        <option value="in_progress" {% if cur_s == 'in_progress' %}selected{% endif %}>In Progress</option>
+        <option value="done"        {% if cur_s == 'done'        %}selected{% endif %}>Done</option>
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="6"
+                placeholder="What needs to be built, fixed, or done? Include any relevant context, acceptance criteria, or links.">{{ ticket.description or '' if ticket else '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">
+      {% if ticket %}Save Changes{% else %}Create Ticket{% endif %}
+    </button>
+    <a class="btn btn-ghost" href="/admin/tickets">Cancel</a>
+  </div>
+
+</form>
+
+<style>
+  .form-card {
+    max-width: 760px;
+  }
+  .form-section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 28px 20px;
+    margin-bottom: 20px;
+  }
+  .form-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .field-required label::after {
+    content: " *";
+    color: var(--coral-dark, #c0392b);
+  }
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding-top: 4px;
+  }
+</style>
+
+{% endblock %}
