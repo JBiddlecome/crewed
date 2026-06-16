@@ -1,12 +1,7 @@
 {% extends "base.html" %}
-{% if ticket %}
-  {% block title %}Edit Ticket — Crewed{% endblock %}
-  {% block heading %}Edit Ticket{% endblock %}
-  {% block subheading %}<div class="sub">{{ ticket.title }}</div>{% endblock %}
-{% else %}
-  {% block title %}New Ticket — Crewed{% endblock %}
-  {% block heading %}New Ticket{% endblock %}
-{% endif %}
+{% block title %}{% if ticket %}Edit Ticket{% else %}New Ticket{% endif %} — Crewed{% endblock %}
+{% block heading %}{% if ticket %}Edit Ticket{% else %}New Ticket{% endif %}{% endblock %}
+{% block subheading %}{% if ticket %}<div class="sub">{{ ticket.title }}</div>{% endif %}{% endblock %}
 
 {% block actions %}
   <a class="btn btn-ghost" href="/admin/tickets">Cancel</a>
