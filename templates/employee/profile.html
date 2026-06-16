@@ -91,7 +91,7 @@
       <div style="display:flex; gap:16px; align-items:center; margin-bottom:20px; padding-bottom:20px; border-bottom:1.5px solid var(--line);">
         <div class="profile-pic-container">
           {% if user.profile_picture %}
-            <img class="profile-pic-preview" src="/uploads/profile_pics/{{ user.profile_picture }}" alt="Profile Picture">
+            <img class="profile-pic-preview" src="/file/profile-pic/{{ user.profile_picture }}" alt="Profile Picture">
           {% else %}
             <div class="profile-pic-placeholder">No Photo</div>
           {% endif %}

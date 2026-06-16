@@ -63,7 +63,7 @@
 <!-- Employee Header -->
 <div class="onboard-header">
   {% if employee.profile_picture %}
-    <img class="onboard-avatar" src="/uploads/profile_pics/{{ employee.profile_picture }}" alt="">
+    <img class="onboard-avatar" src="/file/profile-pic/{{ employee.profile_picture }}" alt="">
   {% else %}
     <div class="onboard-avatar">{{ employee.first_name[0] }}{{ employee.last_name[0] }}</div>
   {% endif %}

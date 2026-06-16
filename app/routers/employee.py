@@ -1,6 +1,5 @@
 from datetime import date, datetime
 import os
-import shutil
 import uuid
 import io
 
@@ -11,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..auth import require
 from ..db import get_db
-from ..config import DATA_DIR
+from ..storage import upload_file
 from ..helpers import (
     US_STATES,
     details_map,
@@ -260,15 +259,13 @@ def upload_photo(
         return RedirectResponse("/employee/profile", status_code=303)
         
     filename = f"{uuid.uuid4()}{ext}"
-    filepath = DATA_DIR / "uploads" / "profile_pics" / filename
-    
+
     try:
-        with filepath.open("wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
+        upload_file(photo.file.read(), "profile_pictures", filename)
     except Exception as e:
         flash(request, f"Failed to save profile picture: {e}", "error")
         return RedirectResponse("/employee/profile", status_code=303)
-        
+
     db_user = db.get(models.User, user.id)
     db_user.profile_picture = filename
     is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
@@ -307,12 +304,10 @@ def upload_resume(
         return RedirectResponse("/employee/profile", status_code=303)
         
     filename = f"{uuid.uuid4()}{ext}"
-    filepath = DATA_DIR / "uploads" / "resumes" / filename
-    
+
     try:
         resume.file.seek(0)
-        with filepath.open("wb") as buffer:
-            shutil.copyfileobj(resume.file, buffer)
+        upload_file(resume.file.read(), "resumes", filename)
     except Exception as e:
         flash(request, f"Failed to save resume: {e}", "error")
         return RedirectResponse("/employee/profile", status_code=303)
