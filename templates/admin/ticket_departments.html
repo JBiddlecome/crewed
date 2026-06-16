@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Ticket Departments — Crewed{% endblock %}
+{% block heading %}Ticket Departments{% endblock %}
+{% block subheading %}<div class="sub">{{ departments|length }} department{% if departments|length != 1 %}s{% endif %}</div>{% endblock %}
+{% block actions %}<a class="btn btn-ghost" href="/admin/tickets">← Back to Tickets</a>{% endblock %}
+{% block content %}
+
+<style>
+  .dept-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+    max-width: 860px;
+  }
+  .dept-list-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .dept-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .dept-row:last-child { border-bottom: none; }
+  .dept-row-name { font-weight: 600; }
+  .dept-add-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .dept-add-card h2 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .dept-add-row {
+    display: flex;
+    gap: 8px;
+  }
+  .dept-add-row input {
+    flex: 1;
+    min-width: 0;
+  }
+  .empty-depts {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+</style>
+
+<div class="dept-layout">
+
+  <div class="dept-list-card">
+    {% if departments %}
+      {% for d in departments %}
+      <div class="dept-row">
+        <span class="dept-row-name">{{ d.name }}</span>
+        <form method="post" action="/admin/tickets/departments/{{ d.id }}/delete"
+              onsubmit="return confirm('Delete department \'{{ d.name }}\'? Existing tickets will keep their department label.')">
+          <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-depts">No departments yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="dept-add-card">
+    <h2>Add Department</h2>
+    <form method="post" action="/admin/tickets/departments/new">
+      <div class="field" style="margin-bottom:12px">
+        <label for="name">Department Name</label>
+        <div class="dept-add-row">
+          <input id="name" name="name" type="text" required placeholder="e.g. Development" maxlength="80">
+          <button class="btn btn-primary" type="submit">Add</button>
+        </div>
+      </div>
+    </form>
+    <p style="font-size:0.8rem;color:var(--muted);margin:0">
+      Departments appear in the ticket form dropdown. Deleting a department does not affect existing tickets.
+    </p>
+  </div>
+
+</div>
+
+{% endblock %}

@@ -343,6 +343,91 @@ def activate_employee(
     return RedirectResponse("/admin/employees", status_code=303)
 
 
+@router.get("/employees/{employee_id}")
+def employee_profile(
+    employee_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    emp = db.get(models.User, employee_id)
+    if not emp or emp.role != "employee":
+        flash(request, "Employee not found.", "error")
+        return RedirectResponse("/admin/employees", status_code=303)
+    today = date.today()
+    confirmed_assignments = (
+        db.query(models.Assignment)
+        .filter_by(employee_id=employee_id, status="confirmed")
+        .join(models.Shift)
+        .order_by(models.Shift.shift_date)
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/employee_profile.html",
+        {"user": user, "emp": emp, "today": today, "confirmed_assignments": confirmed_assignments},
+    )
+
+
+@router.post("/employees/{employee_id}/profile")
+def update_employee_profile(
+    employee_id: int,
+    request: Request,
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    email: str = Form(""),
+    phone: str = Form(""),
+    address: str = Form(""),
+    city: str = Form(""),
+    state: str = Form(""),
+    zip: str = Form(""),
+    dob: str = Form(""),
+    gender: str = Form(""),
+    hire_date: str = Form(""),
+    rehire_date: str = Form(""),
+    concierge_date: str = Form(""),
+    payroll_id: str = Form(""),
+    ssn: str = Form(""),
+    interview_notes: str = Form(""),
+    background_check_date: str = Form(""),
+    background_check_status: str = Form(""),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    emp = db.get(models.User, employee_id)
+    if not emp or emp.role != "employee":
+        flash(request, "Employee not found.", "error")
+        return RedirectResponse("/admin/employees", status_code=303)
+
+    def parse_date(val):
+        try:
+            return date.fromisoformat(val) if val.strip() else None
+        except ValueError:
+            return None
+
+    emp.first_name = first_name.strip() or emp.first_name
+    emp.last_name = last_name.strip() or emp.last_name
+    emp.email = email.strip() or emp.email
+    emp.phone = phone.strip() or None
+    emp.address = address.strip() or None
+    emp.city = city.strip() or None
+    emp.state = state.strip() or None
+    emp.zip = zip.strip() or None
+    emp.gender = gender.strip() or None
+    emp.payroll_id = payroll_id.strip() or None
+    emp.ssn = ssn.strip() or None
+    emp.interview_notes = interview_notes.strip() or None
+    emp.background_check_status = background_check_status if background_check_status in ("clean", "has_background") else None
+    emp.dob = parse_date(dob)
+    emp.hire_date = parse_date(hire_date)
+    emp.rehire_date = parse_date(rehire_date)
+    emp.concierge_date = parse_date(concierge_date)
+    emp.background_check_date = parse_date(background_check_date)
+    db.commit()
+    flash(request, f"{emp.name}'s profile updated.")
+    return RedirectResponse(f"/admin/employees/{employee_id}", status_code=303)
+
+
 # ---------- Catalogs ----------
 
 @router.get("/positions")
@@ -750,6 +835,17 @@ def admin_delete_from_blocklist(
     return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
 
 
+# ---------- Payroll ----------
+
+@router.get("/payroll")
+def payroll_hub(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    return templates.TemplateResponse(request, "admin/payroll.html", {"user": user})
+
+
 # ---------- Timesheets ----------
 
 @router.get("/timesheets")
@@ -934,41 +1030,125 @@ def admin_decline_position(
 
 # ---------- Tickets ----------
 
-_TICKET_DEPARTMENTS = [
-    "Recruiting & Onboarding", "Payroll", "Staffing", "Accounting",
+_DEFAULT_TICKET_DEPARTMENTS = [
+    "Accounting", "Development", "Payroll", "Recruiting & Onboarding", "Staffing",
 ]
+
+
+def _load_departments(db: Session) -> list[models.TicketDepartment]:
+    depts = db.query(models.TicketDepartment).order_by(models.TicketDepartment.name).all()
+    if not depts:
+        for name in _DEFAULT_TICKET_DEPARTMENTS:
+            db.add(models.TicketDepartment(name=name))
+        db.commit()
+        depts = db.query(models.TicketDepartment).order_by(models.TicketDepartment.name).all()
+    return depts
 
 
 @router.get("/tickets")
 def tickets_list(
     request: Request,
+    dept: str = "",
+    priority: str = "",
+    sort: str = "created_desc",
     user: models.User = Depends(require("admin")),
     db: Session = Depends(get_db),
 ):
-    tickets = (
-        db.query(models.Ticket)
-        .order_by(
-            models.Ticket.status,
-            models.Ticket.created_at.desc(),
-        )
-        .all()
-    )
+    q = db.query(models.Ticket)
+    if dept:
+        q = q.filter(models.Ticket.department == dept)
+    if priority and priority in ("green", "yellow", "red"):
+        q = q.filter(models.Ticket.priority == priority)
+
+    _priority_order = {"red": 0, "yellow": 1, "green": 2}
+    if sort == "created_asc":
+        q = q.order_by(models.Ticket.created_at.asc())
+    elif sort == "priority_high":
+        q = q.order_by(models.Ticket.created_at.desc())
+        tickets = sorted(q.all(), key=lambda t: _priority_order.get(t.priority, 9))
+    elif sort == "priority_low":
+        q = q.order_by(models.Ticket.created_at.desc())
+        tickets = sorted(q.all(), key=lambda t: _priority_order.get(t.priority, 9), reverse=True)
+    else:
+        q = q.order_by(models.Ticket.created_at.desc())
+
+    if sort not in ("priority_high", "priority_low"):
+        tickets = q.all()
+
+    departments = _load_departments(db)
     return templates.TemplateResponse(
         request,
         "admin/tickets.html",
-        {"user": user, "tickets": tickets},
+        {
+            "user": user,
+            "tickets": tickets,
+            "departments": departments,
+            "filter_dept": dept,
+            "filter_priority": priority,
+            "sort": sort,
+        },
     )
+
+
+@router.get("/tickets/departments")
+def ticket_departments_page(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    departments = _load_departments(db)
+    return templates.TemplateResponse(
+        request,
+        "admin/ticket_departments.html",
+        {"user": user, "departments": departments},
+    )
+
+
+@router.post("/tickets/departments/new")
+def ticket_department_new(
+    request: Request,
+    name: str = Form(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    name = name.strip()
+    if name:
+        existing = db.query(models.TicketDepartment).filter_by(name=name).first()
+        if existing:
+            flash(request, f'Department "{name}" already exists.', "error")
+        else:
+            db.add(models.TicketDepartment(name=name))
+            db.commit()
+            flash(request, f'Department "{name}" added.')
+    return RedirectResponse("/admin/tickets/departments", status_code=303)
+
+
+@router.post("/tickets/departments/{dept_id}/delete")
+def ticket_department_delete(
+    dept_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    dept = db.get(models.TicketDepartment, dept_id)
+    if dept:
+        db.delete(dept)
+        db.commit()
+        flash(request, f'Department "{dept.name}" deleted.')
+    return RedirectResponse("/admin/tickets/departments", status_code=303)
 
 
 @router.get("/tickets/new")
 def ticket_new_form(
     request: Request,
     user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
 ):
+    departments = _load_departments(db)
     return templates.TemplateResponse(
         request,
         "admin/ticket_form.html",
-        {"user": user, "ticket": None, "departments": _TICKET_DEPARTMENTS},
+        {"user": user, "ticket": None, "departments": [d.name for d in departments]},
     )
 
 
@@ -1005,10 +1185,11 @@ def ticket_edit_form(
     if not ticket:
         flash(request, "Ticket not found.", "error")
         return RedirectResponse("/admin/tickets", status_code=303)
+    departments = _load_departments(db)
     return templates.TemplateResponse(
         request,
         "admin/ticket_form.html",
-        {"user": user, "ticket": ticket, "departments": _TICKET_DEPARTMENTS},
+        {"user": user, "ticket": ticket, "departments": [d.name for d in departments]},
     )
 
 

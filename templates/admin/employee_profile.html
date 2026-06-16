@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}{{ emp.name }} — Crewed{% endblock %}
+{% block heading %}{{ emp.name }}{% endblock %}
+{% block actions %}
+<a class="btn btn-ghost btn-sm" href="/admin/employees">← Employees</a>
+{% endblock %}
+{% block content %}
+
+<form method="post" action="/admin/employees/{{ emp.id }}/profile">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+
+  {# ── Left column ── #}
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    {# Photo & Resume #}
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; gap:20px; margin-bottom:16px;">
+        {% if emp.profile_picture %}
+          <img src="/file/profile-pic/{{ emp.profile_picture }}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid var(--line);" alt="Photo">
+        {% else %}
+          <div style="width:80px; height:80px; border-radius:50%; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:700; color:var(--muted); border:2px solid var(--line);">
+            {{ emp.first_name[0] }}{{ emp.last_name[0] }}
+          </div>
+        {% endif %}
+        <div>
+          <div style="font-size:1.15rem; font-weight:700;">{{ emp.name }}</div>
+          <span class="badge badge-{{ emp.status }}" style="margin-top:4px;">{{ emp.status }}</span>
+          {% if emp.profile_picture %}
+            <div style="font-size:0.78rem; color:var(--muted); margin-top:4px;">
+              Photo: {% if emp.profile_picture_approved %}<span style="color:var(--seafoam-deep); font-weight:600;">Approved</span>{% else %}<span style="color:var(--amber-deep); font-weight:600;">Pending approval</span>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      {% if emp.resume_file %}
+        <a href="/file/resume/{{ emp.resume_file }}" target="_blank" class="btn btn-soft btn-sm">View Resume</a>
+      {% else %}
+        <span style="color:var(--muted); font-size:0.85rem;">No resume on file</span>
+      {% endif %}
+    </div>
+
+    {# Personal Info #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:16px;">Personal Information</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="label">First Name</label>
+          <input class="input" type="text" name="first_name" value="{{ emp.first_name }}">
+        </div>
+        <div>
+          <label class="label">Last Name</label>
+          <input class="input" type="text" name="last_name" value="{{ emp.last_name }}">
+        </div>
+        <div>
+          <label class="label">Date of Birth</label>
+          <input class="input" type="date" name="dob" value="{{ emp.dob.isoformat() if emp.dob else '' }}">
+        </div>
+        <div>
+          <label class="label">Gender</label>
+          <select class="input" name="gender">
+            <option value="">— Select —</option>
+            <option value="male" {% if emp.gender == 'male' %}selected{% endif %}>Male</option>
+            <option value="female" {% if emp.gender == 'female' %}selected{% endif %}>Female</option>
+            <option value="nonbinary" {% if emp.gender == 'nonbinary' %}selected{% endif %}>Non-binary</option>
+            <option value="prefer_not" {% if emp.gender == 'prefer_not' %}selected{% endif %}>Prefer not to say</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">SSN</label>
+          <input class="input" type="text" name="ssn" value="{{ emp.ssn or '' }}" placeholder="XXX-XX-XXXX" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    {# Contact & Address #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:16px;">Contact & Address</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="label">Email</label>
+          <input class="input" type="email" name="email" value="{{ emp.email }}">
+        </div>
+        <div>
+          <label class="label">Phone</label>
+          <input class="input" type="tel" name="phone" value="{{ emp.phone or '' }}">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="label">Street Address</label>
+          <input class="input" type="text" name="address" value="{{ emp.address or '' }}">
+        </div>
+        <div>
+          <label class="label">City</label>
+          <input class="input" type="text" name="city" value="{{ emp.city or '' }}">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div>
+            <label class="label">State</label>
+            <input class="input" type="text" name="state" value="{{ emp.state or '' }}" maxlength="2" style="text-transform:uppercase;">
+          </div>
+          <div>
+            <label class="label">ZIP</label>
+            <input class="input" type="text" name="zip" value="{{ emp.zip or '' }}" maxlength="10">
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Right column ── #}
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    {# Employment Info #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:16px;">Employment</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="label">Hire Date</label>
+          <input class="input" type="date" name="hire_date" value="{{ emp.hire_date.isoformat() if emp.hire_date else '' }}">
+        </div>
+        <div>
+          <label class="label">Rehire Date</label>
+          <input class="input" type="date" name="rehire_date" value="{{ emp.rehire_date.isoformat() if emp.rehire_date else '' }}">
+        </div>
+        <div>
+          <label class="label">Concierge Date</label>
+          <input class="input" type="date" name="concierge_date" value="{{ emp.concierge_date.isoformat() if emp.concierge_date else '' }}">
+        </div>
+        <div>
+          <label class="label">Payroll ID</label>
+          <input class="input" type="text" name="payroll_id" value="{{ emp.payroll_id or '' }}">
+        </div>
+      </div>
+    </div>
+
+    {# Background Check #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:16px;">Background Check</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="label">Check Date</label>
+          <input class="input" type="date" name="background_check_date" value="{{ emp.background_check_date.isoformat() if emp.background_check_date else '' }}">
+        </div>
+        <div>
+          <label class="label">Result</label>
+          <select class="input" name="background_check_status">
+            <option value="">— Not run —</option>
+            <option value="clean" {% if emp.background_check_status == 'clean' %}selected{% endif %}>Clean</option>
+            <option value="has_background" {% if emp.background_check_status == 'has_background' %}selected{% endif %}>Has Background</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {# Interview Notes #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:12px;">Interview Notes</div>
+      <textarea class="input" name="interview_notes" rows="5" placeholder="Notes from interview…" style="resize:vertical; font-size:0.875rem;">{{ emp.interview_notes or '' }}</textarea>
+    </div>
+
+    {# Positions & Certs #}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:12px;">Positions</div>
+      {% if emp.positions %}
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
+          {% for ep in emp.positions %}
+            <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}">
+              {{ ep.position.name }}
+              <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">({{ ep.status }})</small>
+            </span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="color:var(--muted); font-size:0.875rem; margin-bottom:16px;">No positions added.</p>
+      {% endif %}
+      {% if emp.certifications %}
+        <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:8px;">Certifications</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          {% for ec in emp.certifications %}
+            <span class="chip chip-approved">
+              {{ ec.certification.name }}
+              {% if ec.expires_on %}<small style="font-size:0.7rem; margin-left:4px; font-weight:600;">exp {{ ec.expires_on.strftime('%m/%d/%y') }}</small>{% endif %}
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+{# Save button #}
+<div style="margin-top:20px; display:flex; justify-content:flex-end;">
+  <button type="submit" class="btn" style="min-width:140px;">Save Changes</button>
+</div>
+</form>
+
+{# ── Confirmed Shifts Calendar ── #}
+<div class="card" style="padding:24px; margin-top:20px;">
+  <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:16px;">Confirmed Shifts</div>
+  {% if confirmed_assignments %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Position</th>
+          <th>Client</th>
+          <th>Location</th>
+          <th>Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in confirmed_assignments %}
+        <tr {% if a.shift.shift_date < today %}style="opacity:.6"{% endif %}>
+          <td style="font-weight:600; white-space:nowrap;">
+            {{ a.shift.shift_date.strftime('%a, %b %d, %Y') }}
+            {% if a.shift.shift_date == today %}
+              <span class="badge" style="margin-left:6px; font-size:0.65rem; background:var(--seafoam); color:var(--seafoam-deep);">Today</span>
+            {% elif a.shift.shift_date > today %}
+              <span style="font-size:0.72rem; color:var(--seafoam-deep); font-weight:600; margin-left:4px;">upcoming</span>
+            {% endif %}
+          </td>
+          <td>{{ a.shift.position.name }}</td>
+          <td>{{ a.shift.company.name }}</td>
+          <td>{{ a.shift.location.name }}</td>
+          <td style="white-space:nowrap;">{{ a.shift.start_time }}–{{ a.shift.end_time }}</td>
+          <td>
+            {% if a.timesheet %}
+              <span class="badge badge-{{ a.timesheet.status }}">{{ a.timesheet.status }}</span>
+            {% else %}
+              <span class="badge badge-active">confirmed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty" style="padding:24px 0;">
+      <div class="mark">S</div>
+      <p>No confirmed shifts for this employee.</p>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

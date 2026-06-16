@@ -90,7 +90,15 @@ class User(Base):
     state = Column(String)
     zip = Column(String)
     dob = Column(Date)
+    gender = Column(String)
     hire_date = Column(Date)
+    rehire_date = Column(Date)
+    concierge_date = Column(Date)
+    payroll_id = Column(String)
+    ssn = Column(String)
+    interview_notes = Column(Text)
+    background_check_date = Column(Date)
+    background_check_status = Column(String)  # clean | has_background
     gusto_employee_uuid = Column(String)
     profile_picture = Column(String)
     profile_picture_approved = Column(Boolean, default=False)
@@ -482,3 +490,10 @@ class Ticket(Base):
     status = Column(String, default="open", nullable=False)      # open | in_progress | done
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TicketDepartment(Base):
+    __tablename__ = "ticket_department"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

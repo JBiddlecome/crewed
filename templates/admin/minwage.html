@@ -3,6 +3,14 @@
 {% block heading %}Minimum Wage{% endblock %}
 {% block subheading %}<div class="sub">Per-state floors applied to every pay rate. Seeded with defaults — verify against current law.</div>{% endblock %}
 {% block content %}
+{% set path = request.url.path %}
+<nav class="settings-nav">
+  <a href="/admin/settings" class="{{ 'active' if path == '/admin/settings' }}">General</a>
+  <a href="/admin/positions" class="{{ 'active' if path.startswith('/admin/positions') }}">Positions</a>
+  <a href="/admin/certifications" class="{{ 'active' if path.startswith('/admin/certifications') }}">Certifications</a>
+  <a href="/admin/minwage" class="{{ 'active' if path.startswith('/admin/minwage') }}">Minimum Wage</a>
+  <a href="/admin/tickets" class="{{ 'active' if path.startswith('/admin/tickets') }}">Tickets</a>
+</nav>
 
 <div class="card" style="max-width:560px">
   <table class="table">

@@ -19,7 +19,7 @@
       {% for e in employees %}
       <tr>
         <td class="strong">
-          {{ e.name }}
+          <a href="/admin/employees/{{ e.id }}" style="color:inherit; text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ e.name }}</a>
           {% if e.resume_file %}
             <div style="margin-top:4px;">
               <a href="/file/resume/{{ e.resume_file }}" target="_blank" class="btn btn-soft btn-sm" style="padding: 2px 8px; font-size: 0.75rem; font-weight:500;">
