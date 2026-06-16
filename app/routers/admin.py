@@ -941,8 +941,7 @@ def admin_decline_position(
 # ---------- Tickets ----------
 
 _TICKET_DEPARTMENTS = [
-    "Engineering", "Design", "Product", "Marketing", "Sales",
-    "Operations", "Finance", "HR", "Legal", "Support", "Other",
+    "Recruiting & Onboarding", "Payroll", "Staffing", "Accounting",
 ]
 
 
