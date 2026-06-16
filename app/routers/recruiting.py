@@ -4,7 +4,6 @@ Prefix: /admin/recruiting
 """
 import json
 import os
-import shutil
 import uuid
 from datetime import datetime
 
@@ -14,13 +13,11 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..auth import require
-from ..config import DATA_DIR
 from ..db import get_db
+from ..storage import delete_file, upload_file
 from ..templating import flash, templates
 
 router = APIRouter(prefix="/admin/recruiting")
-
-ONBOARDING_PDF_DIR = DATA_DIR / "uploads" / "onboarding_pdfs"
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -155,10 +152,7 @@ async def upload_document(
             flash(request, "Only PDF files are accepted.", "error")
             return RedirectResponse("/admin/recruiting/documents", status_code=303)
         filename = f"{uuid.uuid4()}.pdf"
-        dest = ONBOARDING_PDF_DIR / filename
-        ONBOARDING_PDF_DIR.mkdir(parents=True, exist_ok=True)
-        with dest.open("wb") as buf:
-            shutil.copyfileobj(pdf_file.file, buf)
+        upload_file(pdf_file.file.read(), "onboarding", filename)
 
     doc = models.OnboardingDocument(
         name=name,
@@ -249,12 +243,8 @@ def delete_document(
         flash(request, "Remove this document from the onboarding package first.", "error")
         return RedirectResponse("/admin/recruiting/documents", status_code=303)
 
-    # Delete file
     if doc.filename:
-        try:
-            (ONBOARDING_PDF_DIR / doc.filename).unlink(missing_ok=True)
-        except Exception:
-            pass
+        delete_file("onboarding", doc.filename)
 
     name = doc.name
     db.delete(doc)

@@ -885,15 +885,9 @@ def admin_reject_photo(
     if not emp or emp.role != "employee":
         flash(request, "Employee not found.", "error")
     else:
-        from ..config import DATA_DIR
-        import os
         if emp.profile_picture:
-            filepath = DATA_DIR / "uploads" / "profile_pics" / emp.profile_picture
-            if filepath.exists():
-                try:
-                    os.remove(filepath)
-                except Exception:
-                    pass
+            from ..storage import delete_file
+            delete_file("profile_pictures", emp.profile_picture)
         emp.profile_picture = None
         emp.profile_picture_approved = False
         db.commit()
@@ -941,8 +935,7 @@ def admin_decline_position(
 # ---------- Tickets ----------
 
 _TICKET_DEPARTMENTS = [
-    "Engineering", "Design", "Product", "Marketing", "Sales",
-    "Operations", "Finance", "HR", "Legal", "Support", "Other",
+    "Recruiting & Onboarding", "Payroll", "Staffing", "Accounting",
 ]
 
 

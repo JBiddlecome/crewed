@@ -22,7 +22,7 @@
           {{ e.name }}
           {% if e.resume_file %}
             <div style="margin-top:4px;">
-              <a href="/uploads/resumes/{{ e.resume_file }}" target="_blank" class="btn btn-soft btn-sm" style="padding: 2px 8px; font-size: 0.75rem; font-weight:500;">
+              <a href="/file/resume/{{ e.resume_file }}" target="_blank" class="btn btn-soft btn-sm" style="padding: 2px 8px; font-size: 0.75rem; font-weight:500;">
                 📄 View Resume
               </a>
             </div>
@@ -31,7 +31,7 @@
         <td>
           {% if e.profile_picture %}
             <div style="display:flex; align-items:center; gap:8px;">
-              <img src="/uploads/profile_pics/{{ e.profile_picture }}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:1.5px solid var(--line);" alt="Photo">
+              <img src="/file/profile-pic/{{ e.profile_picture }}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:1.5px solid var(--line);" alt="Photo">
               <div>
                 {% if e.profile_picture_approved %}
                   <span style="color:var(--seafoam-deep); font-size:0.75rem; font-weight:600; display:block;">Approved</span>

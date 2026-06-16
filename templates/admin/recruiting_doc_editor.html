@@ -114,7 +114,7 @@ import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
 const DOC_ID = {{ doc.id }};
-const PDF_URL = '/uploads/onboarding_pdfs/{{ doc.filename }}';
+const PDF_URL = '/file/onboarding/{{ doc.filename }}';
 const SCALE = 1.5;
 
 let pdfDoc = null;
