@@ -2,8 +2,19 @@
 {% block title %}Tickets — Crewed{% endblock %}
 {% block heading %}Tickets{% endblock %}
 {% block subheading %}<div class="sub">{{ tickets|length }} ticket{% if tickets|length != 1 %}s{% endif %}</div>{% endblock %}
-{% block actions %}<a class="btn" href="/admin/tickets/new">+ New Ticket</a>{% endblock %}
+{% block actions %}
+  <a class="btn btn-ghost" href="/admin/tickets/departments">Manage Departments</a>
+  <a class="btn" href="/admin/tickets/new">+ New Ticket</a>
+{% endblock %}
 {% block content %}
+{% set path = request.url.path %}
+<nav class="settings-nav">
+  <a href="/admin/settings" class="{{ 'active' if path == '/admin/settings' }}">General</a>
+  <a href="/admin/positions" class="{{ 'active' if path.startswith('/admin/positions') }}">Positions</a>
+  <a href="/admin/certifications" class="{{ 'active' if path.startswith('/admin/certifications') }}">Certifications</a>
+  <a href="/admin/minwage" class="{{ 'active' if path.startswith('/admin/minwage') }}">Minimum Wage</a>
+  <a href="/admin/tickets" class="{{ 'active' if path.startswith('/admin/tickets') }}">Tickets</a>
+</nav>
 
 <style>
   .priority-dot {
@@ -39,6 +50,52 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-bar select {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .filter-bar .btn-ghost {
+    font-size: 0.83rem;
+    padding: 5px 12px;
+  }
+  .active-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--line);
+    border-radius: 20px;
+    padding: 3px 10px 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .filter-chip a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .filter-chip a:hover { color: var(--text); }
 </style>
 
 {% macro priority_dot(p) %}
@@ -46,6 +103,52 @@
     <span class="priority-dot {{ p }}"></span>{{ p|capitalize }}
   </span>
 {% endmacro %}
+
+{# ── Filter / Sort bar ── #}
+<form method="get" action="/admin/tickets" class="filter-bar">
+  <select name="dept" onchange="this.form.submit()">
+    <option value="">All Departments</option>
+    {% for d in departments %}
+      <option value="{{ d.name }}" {% if filter_dept == d.name %}selected{% endif %}>{{ d.name }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="priority" onchange="this.form.submit()">
+    <option value="">All Priorities</option>
+    <option value="red"    {% if filter_priority == 'red'    %}selected{% endif %}>🔴 Red — High</option>
+    <option value="yellow" {% if filter_priority == 'yellow' %}selected{% endif %}>🟡 Yellow — Medium</option>
+    <option value="green"  {% if filter_priority == 'green'  %}selected{% endif %}>🟢 Green — Low</option>
+  </select>
+
+  <select name="sort" onchange="this.form.submit()">
+    <option value="created_desc"  {% if sort == 'created_desc'  %}selected{% endif %}>Newest First</option>
+    <option value="created_asc"   {% if sort == 'created_asc'   %}selected{% endif %}>Oldest First</option>
+    <option value="priority_high" {% if sort == 'priority_high' %}selected{% endif %}>Priority: High → Low</option>
+    <option value="priority_low"  {% if sort == 'priority_low'  %}selected{% endif %}>Priority: Low → High</option>
+  </select>
+
+  {% if filter_dept or filter_priority %}
+    <a class="btn btn-ghost" href="/admin/tickets{% if sort and sort != 'created_desc' %}?sort={{ sort }}{% endif %}">Clear Filters</a>
+  {% endif %}
+</form>
+
+{# ── Active filter chips ── #}
+{% if filter_dept or filter_priority %}
+<div class="active-filters">
+  {% if filter_dept %}
+    <span class="filter-chip">
+      Dept: {{ filter_dept }}
+      <a href="/admin/tickets?{% if filter_priority %}priority={{ filter_priority }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}">×</a>
+    </span>
+  {% endif %}
+  {% if filter_priority %}
+    <span class="filter-chip">
+      Priority: {{ filter_priority|capitalize }}
+      <a href="/admin/tickets?{% if filter_dept %}dept={{ filter_dept }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}">×</a>
+    </span>
+  {% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   {% if tickets %}
@@ -93,8 +196,10 @@
   {% else %}
   <div class="empty">
     <div class="mark">🎫</div>
-    <p>No tickets yet.</p>
-    <a class="btn" href="/admin/tickets/new">Create First Ticket</a>
+    <p>{% if filter_dept or filter_priority %}No tickets match the current filters.{% else %}No tickets yet.{% endif %}</p>
+    {% if not filter_dept and not filter_priority %}
+      <a class="btn" href="/admin/tickets/new">Create First Ticket</a>
+    {% endif %}
   </div>
   {% endif %}
 </div>

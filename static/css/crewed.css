@@ -99,6 +99,34 @@ a:hover { text-decoration: underline; }
 .sidebar nav a.active svg { stroke: var(--coral); }
 .sidebar nav svg { width: 18px; height: 18px; stroke: #b9a8b3; flex-shrink: 0; }
 
+.nav-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: rgba(255,255,255,.3);
+  padding: 14px 12px 4px;
+}
+
+.settings-nav {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.settings-nav a {
+  padding: 8px 16px;
+  font-size: .875rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.settings-nav a:hover { color: var(--text); background: var(--line); }
+.settings-nav a.active { color: var(--text); border-bottom-color: var(--coral); }
+
 .sidebar-user {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding: 14px 12px 4px;
