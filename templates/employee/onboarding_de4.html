@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}CA DE-4 State Withholding — Onboarding — Crewed{% endblock %}
+{% block heading %}CA DE-4 Withholding Allowance Certificate{% endblock %}
+{% block subheading %}<p class="subheading">Complete your California state income tax withholding information</p>{% endblock %}
+{% block actions %}
+  <a href="/employee/onboarding" class="btn btn-outline">← Back to Onboarding</a>
+{% endblock %}
+
+{% block content %}
+<style>
+.wizard-layout { max-width:780px; margin:0 auto; }
+.wizard-steps { display:flex; gap:0; margin-bottom:28px; border-radius:12px; overflow:hidden; border:1.5px solid var(--border); }
+.wizard-step { flex:1; padding:12px 8px; text-align:center; font-size:.78rem; font-weight:700; color:var(--text-muted); background:var(--surface); border-right:1px solid var(--border); cursor:pointer; transition:all .15s; }
+.wizard-step:last-child { border-right:none; }
+.wizard-step.active { background:var(--accent); color:#fff; }
+.wizard-step.done { background:var(--accent-soft); color:var(--accent); }
+.wizard-step-num { display:block; font-size:1rem; font-weight:800; margin-bottom:2px; }
+
+.wizard-section { display:none; }
+.wizard-section.active { display:block; }
+
+.form-card { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:24px 28px; margin-bottom:18px; }
+.form-card h3 { font-size:.95rem; font-weight:700; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+.form-card .section-label { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); margin-bottom:4px; }
+.form-card .hint { font-size:.78rem; color:var(--text-muted); margin:0 0 16px; line-height:1.5; background:var(--surface-alt); padding:10px 12px; border-radius:8px; border-left:3px solid var(--accent); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-grid .full { grid-column:1/-1; }
+
+.filing-opts { display:grid; grid-template-columns:1fr; gap:8px; }
+.filing-opt { cursor:pointer; display:flex; align-items:flex-start; gap:10px; background:var(--surface-alt); border:2px solid var(--border); border-radius:10px; padding:12px 14px; transition:all .15s; }
+.filing-opt input { margin-top:3px; flex-shrink:0; }
+.filing-opt:has(input:checked) { border-color:var(--accent); background:var(--accent-soft); }
+.filing-opt .opt-title { font-weight:700; font-size:.88rem; color:var(--text); }
+.filing-opt .opt-sub { font-size:.74rem; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+
+/* Allowance worksheet */
+.worksheet { border:1.5px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:16px; }
+.worksheet-header { background:var(--accent-soft); padding:10px 16px; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); }
+.worksheet-row { display:grid; grid-template-columns:2fr 1fr; align-items:center; padding:10px 16px; border-top:1px solid var(--border); gap:12px; }
+.worksheet-row:first-of-type { border-top:none; }
+.worksheet-row-label { font-size:.85rem; color:var(--text); line-height:1.4; }
+.worksheet-row-label small { font-size:.76rem; color:var(--text-muted); display:block; margin-top:2px; }
+.worksheet-total { background:var(--surface-alt); padding:12px 16px; border-top:2px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.worksheet-total-label { font-size:.88rem; font-weight:700; color:var(--text); }
+.total-display { font-size:1.5rem; font-weight:800; color:var(--accent); min-width:60px; text-align:center; background:var(--accent-soft); border-radius:8px; padding:4px 12px; }
+
+.exempt-toggle { display:flex; align-items:center; gap:10px; background:var(--surface-alt); border:1.5px solid var(--border); border-radius:10px; padding:12px 16px; cursor:pointer; margin-top:16px; }
+.exempt-toggle input { flex-shrink:0; width:16px; height:16px; }
+.exempt-fields { display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+.exempt-fields.show { display:block; }
+
+.sig-input { font-family:'Dancing Script', cursive, serif; font-size:1.4rem; font-weight:700; color:#1a1a2e; letter-spacing:.02em; }
+.sig-line { border-top:2px solid #333; margin-top:4px; padding-top:4px; }
+
+.wizard-nav { display:flex; justify-content:space-between; gap:12px; margin-top:20px; }
+.already-done { background:#d1fae5; border:1.5px solid #6ee7b7; border-radius:12px; padding:16px 20px; font-size:.88rem; color:#065f46; font-weight:600; margin-bottom:20px; }
+.ca-note { background:#fef3c7; border:1.5px solid #fcd34d; border-radius:10px; padding:12px 14px; font-size:.78rem; color:#92400e; line-height:1.5; margin-bottom:16px; }
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+
+<div class="wizard-layout">
+
+{% if rec and rec.status == 'complete' %}
+<div class="already-done">
+  ✓ You've already completed your DE-4. <a href="/employee/onboarding" style="color:var(--accent);">Back to onboarding</a>
+</div>
+{% endif %}
+
+<div class="ca-note">
+  <strong>California EDD Form DE-4 (2025)</strong> — Employee's Withholding Allowance Certificate. California requires this separate form in addition to the federal W-4. It tells your employer how much California state income tax (SITW) to withhold from each paycheck.
+</div>
+
+{% if rec and rec.status == 'complete' %}
+<div class="ca-note" style="border-left:4px solid var(--seafoam-dark); background:#d1fae5; border-color:#6ee7b7; color:#065f46; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+  <span><strong>Completed{% if rec.completed_at %} {{ rec.completed_at.strftime('%b %d, %Y') }}{% endif %}.</strong> Your state withholding elections have been saved.</span>
+  <a class="btn" href="/employee/onboarding/wizard/de4/download">Download DE-4 (PDF)</a>
+</div>
+{% endif %}
+
+<!-- Step Indicators -->
+<div class="wizard-steps">
+  <div class="wizard-step active" id="step-tab-1" onclick="goStep(1)"><span class="wizard-step-num">1</span>Personal Info</div>
+  <div class="wizard-step" id="step-tab-2" onclick="goStep(2)"><span class="wizard-step-num">2</span>Filing Status</div>
+  <div class="wizard-step" id="step-tab-3" onclick="goStep(3)"><span class="wizard-step-num">3</span>Allowances</div>
+  <div class="wizard-step" id="step-tab-4" onclick="goStep(4)"><span class="wizard-step-num">4</span>Sign & Submit</div>
+</div>
+
+<form method="post" action="/employee/onboarding/wizard/de4" id="de4-form">
+
+<!-- Step 1: Personal Info -->
+<div class="wizard-section active" id="step-1">
+  <div class="form-card">
+    <div class="section-label">Section 1</div>
+    <h3>Personal Information</h3>
+    <div class="hint">Your name and address must match your Social Security card. Your federal W-4 information has been pre-filled below — review and correct if needed.</div>
+    <div class="form-grid">
+      <div>
+        <label class="label">First Name *</label>
+        <input class="input" name="first_name" type="text" placeholder="Jane" value="{{ data.get('first_name', w4.get('first_name','')) }}" required>
+      </div>
+      <div>
+        <label class="label">Last Name *</label>
+        <input class="input" name="last_name" type="text" placeholder="Doe" value="{{ data.get('last_name', w4.get('last_name','')) }}" required>
+      </div>
+      <div>
+        <label class="label">Social Security Number *</label>
+        <input class="input" name="ssn" type="text" maxlength="11" placeholder="XXX-XX-XXXX" value="{{ data.get('ssn', w4.get('ssn','')) }}" pattern="\d{3}-?\d{2}-?\d{4}" required>
+      </div>
+      <div></div>
+      <div class="full">
+        <label class="label">Street Address</label>
+        <input class="input" name="address" type="text" placeholder="123 Main St" value="{{ data.get('address', w4.get('address','')) }}">
+      </div>
+      <div>
+        <label class="label">City</label>
+        <input class="input" name="city" type="text" placeholder="Los Angeles" value="{{ data.get('city', w4.get('city','')) }}">
+      </div>
+      <div>
+        <label class="label">State</label>
+        <select class="input" name="state">
+          <option value="">Select…</option>
+          {% for code, name in us_states %}
+          <option value="{{ code }}" {{ 'selected' if (data.get('state') or w4.get('state','CA')) == code }}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="label">ZIP Code</label>
+        <input class="input" name="zip" type="text" maxlength="10" placeholder="90001" value="{{ data.get('zip', w4.get('zip','')) }}">
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <span></span>
+    <button type="button" class="btn" onclick="goStep(2)">Next → Filing Status</button>
+  </div>
+</div>
+
+<!-- Step 2: Filing Status -->
+<div class="wizard-section" id="step-2">
+  <div class="form-card">
+    <div class="section-label">Section 2</div>
+    <h3>California Filing Status</h3>
+    <div class="hint">Select the status that applies to your California tax situation. This may differ from your federal W-4 filing status.</div>
+    <div class="filing-opts">
+      <label class="filing-opt">
+        <input type="radio" name="filing_status" value="single_dual" {{ 'checked' if data.get('filing_status') == 'single_dual' }} required>
+        <div>
+          <div class="opt-title">Single or Married (with two or more incomes)</div>
+          <div class="opt-sub">Use this if you are single, or if you are married and both you and your spouse have income — or if you want the most tax withheld.</div>
+        </div>
+      </label>
+      <label class="filing-opt">
+        <input type="radio" name="filing_status" value="married_one" {{ 'checked' if data.get('filing_status') == 'married_one' }}>
+        <div>
+          <div class="opt-title">Married (one income)</div>
+          <div class="opt-sub">Use this if you are married and only you (or only your spouse) has income from wages. Results in less withholding.</div>
+        </div>
+      </label>
+      <label class="filing-opt">
+        <input type="radio" name="filing_status" value="head_of_household" {{ 'checked' if data.get('filing_status') == 'head_of_household' }}>
+        <div>
+          <div class="opt-title">Head of Household</div>
+          <div class="opt-sub">Use this if you are unmarried and pay more than 50% of the costs to maintain a home for a qualifying person.</div>
+        </div>
+      </label>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(1)">← Back</button>
+    <button type="button" class="btn" onclick="goStep(3)">Next → Allowances</button>
+  </div>
+</div>
+
+<!-- Step 3: Withholding Allowances -->
+<div class="wizard-section" id="step-3">
+  <div class="form-card">
+    <div class="section-label">Section 3 — Worksheet A</div>
+    <h3>Regular Withholding Allowances</h3>
+    <div class="hint">Each allowance reduces the amount of California income tax withheld. Answer the questions below and we'll calculate your total. If you want maximum withholding, enter 0 for all fields.</div>
+
+    <div class="worksheet">
+      <div class="worksheet-header">Worksheet A — Your Allowances</div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (a) Personal exemption
+          <small>Enter 1 for yourself. Enter 0 if another person can claim you as a dependent on their taxes.</small>
+        </div>
+        <input class="input" name="allowance_personal" id="wa_a" type="number" min="0" max="1" value="{{ data.get('allowance_personal', '1') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (b) Blind or over 65
+          <small>Enter 1 if you are blind. Enter 1 if you are 65 or older. Enter 2 if both apply to you.</small>
+        </div>
+        <input class="input" name="allowance_blind_elderly" id="wa_b" type="number" min="0" max="2" value="{{ data.get('allowance_blind_elderly', '0') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (c) Spouse
+          <small>Married (one income) filers only: enter 1 if your spouse has no income from wages or you are the sole earner.</small>
+        </div>
+        <input class="input" name="allowance_spouse" id="wa_c" type="number" min="0" max="1" value="{{ data.get('allowance_spouse', '0') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (d) Dependents under 19 or full-time students under 24
+          <small>Enter the number of qualifying children you will claim.</small>
+        </div>
+        <input class="input" name="allowance_dependents" id="wa_d" type="number" min="0" value="{{ data.get('allowance_dependents', '0') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (e) Other dependents
+          <small>Enter the number of other qualifying dependents (e.g., elderly parents).</small>
+        </div>
+        <input class="input" name="allowance_other_deps" id="wa_e" type="number" min="0" value="{{ data.get('allowance_other_deps', '0') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-row">
+        <div class="worksheet-row-label">
+          (f) Estimated deductions (Worksheet B)
+          <small>Enter allowances from Worksheet B if your expected itemized deductions or credits exceed the CA standard deduction. Leave 0 if unsure — you can always update this form later.</small>
+        </div>
+        <input class="input" name="allowance_deductions" id="wa_f" type="number" min="0" value="{{ data.get('allowance_deductions', '0') }}" oninput="calcTotal()">
+      </div>
+
+      <div class="worksheet-total">
+        <div class="worksheet-total-label">Total Withholding Allowances (a + b + c + d + e + f)</div>
+        <div class="total-display" id="allowance-total">{{ data.get('total_allowances', '1') }}</div>
+        <input type="hidden" name="total_allowances" id="total_allowances_hidden" value="{{ data.get('total_allowances', '1') }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="section-label">Section 4 — Optional</div>
+    <h3>Additional Withholding or Exemption</h3>
+
+    <div>
+      <label class="label">Additional amount to withhold each pay period — $</label>
+      <input class="input" name="extra_withholding" type="number" min="0" step="0.01" value="{{ data.get('extra_withholding', '0') }}" placeholder="0.00" style="max-width:180px;">
+      <div style="font-size:.78rem; color:var(--text-muted); margin-top:6px;">Use this if you want more California tax withheld beyond your allowances — for example, if you have other income not subject to withholding.</div>
+    </div>
+
+    <label class="exempt-toggle" id="exempt-toggle">
+      <input type="checkbox" name="claim_exempt" id="claim_exempt" value="yes" {{ 'checked' if data.get('claim_exempt') == 'yes' }} onchange="toggleExempt(this)">
+      <div>
+        <div style="font-weight:700; font-size:.88rem;">I claim exemption from California withholding</div>
+        <div style="font-size:.76rem; color:var(--text-muted); margin-top:2px;">Check this only if you had no California income tax liability last year AND expect none this year.</div>
+      </div>
+    </label>
+
+    <div class="exempt-fields {% if data.get('claim_exempt') == 'yes' %}show{% endif %}" id="exempt-fields">
+      <label class="label">Reason for exemption</label>
+      <select class="input" name="exempt_reason" style="max-width:420px;">
+        <option value="">Select a reason…</option>
+        <option value="no_liability" {{ 'selected' if data.get('exempt_reason') == 'no_liability' }}>No CA tax liability last year &amp; none expected this year</option>
+        <option value="nonresident" {{ 'selected' if data.get('exempt_reason') == 'nonresident' }}>Nonresident of California — wages not subject to CA tax</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(2)">← Back</button>
+    <button type="button" class="btn" onclick="goStep(4)">Next → Sign</button>
+  </div>
+</div>
+
+<!-- Step 4: Signature -->
+<div class="wizard-section" id="step-4">
+  <div class="form-card">
+    <div class="section-label">Step 4</div>
+    <h3>Sign Here</h3>
+    <div class="hint">Under penalty of perjury, I certify that the number of withholding allowances claimed on this certificate does not exceed the number to which I am entitled, or if claiming exemption from withholding, that I am entitled to claim the exempt status.</div>
+    <div class="form-grid">
+      <div class="full">
+        <label class="label">Signature (type your full legal name) *</label>
+        <div class="sig-line">
+          <input class="input sig-input" name="signature" type="text" placeholder="Type your full name" value="{{ data.get('signature','') }}" required autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <label class="label">Date *</label>
+        <input class="input" name="sign_date" type="date" value="{{ data.get('sign_date','') }}" required>
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button type="button" class="btn btn-outline" onclick="goStep(3)">← Back</button>
+    <button type="submit" class="btn">Submit DE-4</button>
+  </div>
+</div>
+
+</form>
+</div>
+
+<script>
+let currentStep = 1;
+function goStep(n) {
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  document.getElementById('step-tab-' + currentStep).classList.remove('active');
+  if (n > currentStep) document.getElementById('step-tab-' + currentStep).classList.add('done');
+  else document.getElementById('step-tab-' + currentStep).classList.remove('done');
+  currentStep = n;
+  document.getElementById('step-' + n).classList.add('active');
+  document.getElementById('step-tab-' + n).classList.add('active');
+  document.getElementById('step-tab-' + n).classList.remove('done');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function calcTotal() {
+  const ids = ['wa_a','wa_b','wa_c','wa_d','wa_e','wa_f'];
+  const total = ids.reduce((sum, id) => {
+    const val = parseInt(document.getElementById(id).value || '0', 10);
+    return sum + (isNaN(val) ? 0 : Math.max(0, val));
+  }, 0);
+  document.getElementById('allowance-total').textContent = total;
+  document.getElementById('total_allowances_hidden').value = total;
+}
+
+function toggleExempt(cb) {
+  document.getElementById('exempt-fields').classList.toggle('show', cb.checked);
+}
+
+// Run on load to sync total
+calcTotal();
+</script>
+{% endblock %}

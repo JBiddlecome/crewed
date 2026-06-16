@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..auth import require
 from ..db import get_db
-from ..helpers import get_past_due_assignment, unread_count
-from ..pdf_forms import employer_info, fill_i9, fill_w4
+from ..helpers import US_STATES, get_past_due_assignment, unread_count
+from ..pdf_forms import employer_info, fill_de4, fill_i9, fill_w4
 from ..templating import flash, templates
 
 
@@ -117,6 +117,7 @@ def register_onboarding_routes(router):
                 "doc": doc,
                 "rec": rec,
                 "data": existing,
+                "us_states": US_STATES,
                 "unread": unread_count(db, user),
                 "blocked_timesheet": get_past_due_assignment(db, user.id),
             },
@@ -142,8 +143,11 @@ def register_onboarding_routes(router):
             "last_name": form_data.get("last_name", "").strip(),
             "ssn": form_data.get("ssn", "").strip(),
             "ssn_last4": form_data.get("ssn_last4", "").strip(),
+            "dob": form_data.get("dob", "").strip(),
             "address": form_data.get("address", "").strip(),
-            "city_state_zip": form_data.get("city_state_zip", "").strip(),
+            "city": form_data.get("city", "").strip(),
+            "state": form_data.get("state", "").strip(),
+            "zip": form_data.get("zip", "").strip(),
             "filing_status": form_data.get("filing_status", "").strip(),
             "multiple_jobs": form_data.get("multiple_jobs", "").strip(),
             "qualifying_children": form_data.get("qualifying_children", "0").strip(),
@@ -159,6 +163,8 @@ def register_onboarding_routes(router):
             errors.append("First name is required.")
         if not wizard_data["last_name"]:
             errors.append("Last name is required.")
+        if not wizard_data["dob"]:
+            errors.append("Date of birth is required.")
         if not wizard_data["filing_status"]:
             errors.append("Filing status is required.")
         if not wizard_data["signature"]:
@@ -171,8 +177,216 @@ def register_onboarding_routes(router):
         rec.wizard_data = _json.dumps(wizard_data)
         rec.status = "complete"
         rec.completed_at = datetime.utcnow()
+        # Sync profile fields back to the User record
+        from datetime import date as _date
+        user.first_name = wizard_data["first_name"]
+        user.last_name = wizard_data["last_name"]
+        user.address = wizard_data["address"] or user.address
+        user.city = wizard_data["city"] or user.city
+        user.state = wizard_data["state"] or user.state
+        user.zip = wizard_data["zip"] or user.zip
+        if wizard_data["dob"]:
+            try:
+                user.dob = _date.fromisoformat(wizard_data["dob"])
+            except ValueError:
+                pass
         db.commit()
         flash(request, "W-4 completed and saved!")
+        return RedirectResponse("/employee/onboarding", status_code=303)
+
+    # ── DE-4 Wizard ─────────────────────────────────────────────────────────
+
+    def _w4_data_for_user(db: Session, employee_id: int) -> dict:
+        """Return saved W-4 wizard_data for the employee, or {} if not completed."""
+        w4_doc = db.query(models.OnboardingDocument).filter_by(doc_type="w4_wizard").first()
+        if not w4_doc:
+            return {}
+        rec = db.query(models.EmployeeOnboarding).filter_by(
+            employee_id=employee_id, document_id=w4_doc.id
+        ).first()
+        if not rec or not rec.wizard_data:
+            return {}
+        try:
+            return _json.loads(rec.wizard_data)
+        except Exception:
+            return {}
+
+    @router.get("/onboarding/wizard/de4")
+    def de4_wizard(
+        request: Request,
+        user: models.User = Depends(require("employee")),
+        db: Session = Depends(get_db),
+    ):
+        doc = db.query(models.OnboardingDocument).filter_by(doc_type="de4_wizard").first()
+        if not doc:
+            flash(request, "DE-4 wizard not configured.", "error")
+            return RedirectResponse("/employee/onboarding", status_code=303)
+        _ensure_onboarding_records(db, user)
+        rec = db.query(models.EmployeeOnboarding).filter_by(
+            employee_id=user.id, document_id=doc.id
+        ).first()
+        existing = {}
+        if rec and rec.wizard_data:
+            try:
+                existing = _json.loads(rec.wizard_data)
+            except Exception:
+                pass
+        return templates.TemplateResponse(
+            request,
+            "employee/onboarding_de4.html",
+            {
+                "user": user,
+                "doc": doc,
+                "rec": rec,
+                "data": existing,
+                "w4": _w4_data_for_user(db, user.id),
+                "us_states": US_STATES,
+                "unread": unread_count(db, user),
+                "blocked_timesheet": get_past_due_assignment(db, user.id),
+            },
+        )
+
+    @router.post("/onboarding/wizard/de4")
+    async def de4_submit(
+        request: Request,
+        user: models.User = Depends(require("employee")),
+        db: Session = Depends(get_db),
+    ):
+        doc = db.query(models.OnboardingDocument).filter_by(doc_type="de4_wizard").first()
+        if not doc:
+            flash(request, "DE-4 wizard not found.", "error")
+            return RedirectResponse("/employee/onboarding", status_code=303)
+        _ensure_onboarding_records(db, user)
+        rec = db.query(models.EmployeeOnboarding).filter_by(
+            employee_id=user.id, document_id=doc.id
+        ).first()
+        form_data = await request.form()
+        wizard_data = {
+            "first_name": form_data.get("first_name", "").strip(),
+            "last_name": form_data.get("last_name", "").strip(),
+            "ssn": form_data.get("ssn", "").strip(),
+            "address": form_data.get("address", "").strip(),
+            "city": form_data.get("city", "").strip(),
+            "state": form_data.get("state", "").strip(),
+            "zip": form_data.get("zip", "").strip(),
+            "filing_status": form_data.get("filing_status", "").strip(),
+            "allowance_personal": form_data.get("allowance_personal", "1").strip(),
+            "allowance_blind_elderly": form_data.get("allowance_blind_elderly", "0").strip(),
+            "allowance_spouse": form_data.get("allowance_spouse", "0").strip(),
+            "allowance_dependents": form_data.get("allowance_dependents", "0").strip(),
+            "allowance_other_deps": form_data.get("allowance_other_deps", "0").strip(),
+            "allowance_deductions": form_data.get("allowance_deductions", "0").strip(),
+            "total_allowances": form_data.get("total_allowances", "1").strip(),
+            "extra_withholding": form_data.get("extra_withholding", "0").strip(),
+            "claim_exempt": form_data.get("claim_exempt", "").strip(),
+            "exempt_reason": form_data.get("exempt_reason", "").strip(),
+            "signature": form_data.get("signature", "").strip(),
+            "sign_date": form_data.get("sign_date", "").strip(),
+        }
+        errors = []
+        if not wizard_data["first_name"]:
+            errors.append("First name is required.")
+        if not wizard_data["last_name"]:
+            errors.append("Last name is required.")
+        if not wizard_data["ssn"]:
+            errors.append("Social Security Number is required.")
+        if not wizard_data["filing_status"]:
+            errors.append("Filing status is required.")
+        if not wizard_data["signature"]:
+            errors.append("Signature is required.")
+        if not wizard_data["sign_date"]:
+            errors.append("Date is required.")
+        if errors:
+            flash(request, " ".join(errors), "error")
+            return RedirectResponse("/employee/onboarding/wizard/de4", status_code=303)
+        rec.wizard_data = _json.dumps(wizard_data)
+        rec.status = "complete"
+        rec.completed_at = datetime.utcnow()
+        db.commit()
+        flash(request, "DE-4 completed and saved!")
+        return RedirectResponse("/employee/onboarding", status_code=303)
+
+    # ── Direct Deposit Wizard ────────────────────────────────────────────────
+
+    @router.get("/onboarding/wizard/direct_deposit")
+    def direct_deposit_wizard(
+        request: Request,
+        user: models.User = Depends(require("employee")),
+        db: Session = Depends(get_db),
+    ):
+        doc = db.query(models.OnboardingDocument).filter_by(doc_type="direct_deposit_wizard").first()
+        if not doc:
+            flash(request, "Direct deposit wizard not configured.", "error")
+            return RedirectResponse("/employee/onboarding", status_code=303)
+        _ensure_onboarding_records(db, user)
+        rec = db.query(models.EmployeeOnboarding).filter_by(
+            employee_id=user.id, document_id=doc.id
+        ).first()
+        existing = {}
+        if rec and rec.wizard_data:
+            try:
+                existing = _json.loads(rec.wizard_data)
+            except Exception:
+                pass
+        return templates.TemplateResponse(
+            request,
+            "employee/onboarding_direct_deposit.html",
+            {
+                "user": user,
+                "doc": doc,
+                "rec": rec,
+                "data": existing,
+                "unread": unread_count(db, user),
+                "blocked_timesheet": get_past_due_assignment(db, user.id),
+            },
+        )
+
+    @router.post("/onboarding/wizard/direct_deposit")
+    async def direct_deposit_submit(
+        request: Request,
+        user: models.User = Depends(require("employee")),
+        db: Session = Depends(get_db),
+    ):
+        doc = db.query(models.OnboardingDocument).filter_by(doc_type="direct_deposit_wizard").first()
+        if not doc:
+            flash(request, "Direct deposit wizard not found.", "error")
+            return RedirectResponse("/employee/onboarding", status_code=303)
+        _ensure_onboarding_records(db, user)
+        rec = db.query(models.EmployeeOnboarding).filter_by(
+            employee_id=user.id, document_id=doc.id
+        ).first()
+        form_data = await request.form()
+        wizard_data = {
+            "bank_name": form_data.get("bank_name", "").strip(),
+            "routing_number": form_data.get("routing_number", "").strip(),
+            "account_number": form_data.get("account_number", "").strip(),
+            "account_type": form_data.get("account_type", "").strip(),
+            "confirm_account_number": form_data.get("confirm_account_number", "").strip(),
+        }
+        errors = []
+        if not wizard_data["bank_name"]:
+            errors.append("Bank name is required.")
+        routing = wizard_data["routing_number"].replace(" ", "").replace("-", "")
+        if not routing.isdigit() or len(routing) != 9:
+            errors.append("Routing number must be exactly 9 digits.")
+        if not wizard_data["account_number"]:
+            errors.append("Account number is required.")
+        if wizard_data["account_number"] != wizard_data["confirm_account_number"]:
+            errors.append("Account numbers do not match.")
+        if wizard_data["account_type"] not in ("checking", "savings"):
+            errors.append("Please select an account type.")
+        if errors:
+            flash(request, " ".join(errors), "error")
+            return RedirectResponse("/employee/onboarding/wizard/direct_deposit", status_code=303)
+        # Don't store the confirmation field
+        del wizard_data["confirm_account_number"]
+        # Normalize routing number
+        wizard_data["routing_number"] = routing
+        rec.wizard_data = _json.dumps(wizard_data)
+        rec.status = "complete"
+        rec.completed_at = datetime.utcnow()
+        db.commit()
+        flash(request, "Direct deposit information saved!")
         return RedirectResponse("/employee/onboarding", status_code=303)
 
     # ── I-9 Wizard ──────────────────────────────────────────────────────────
@@ -280,7 +494,7 @@ def register_onboarding_routes(router):
         user: models.User = Depends(require("employee")),
         db: Session = Depends(get_db),
     ):
-        if kind not in ("w4", "i9"):
+        if kind not in ("w4", "i9", "de4"):
             return RedirectResponse("/employee/onboarding", status_code=303)
         doc = (
             db.query(models.OnboardingDocument)
@@ -299,8 +513,20 @@ def register_onboarding_routes(router):
             return RedirectResponse(f"/employee/onboarding/wizard/{kind}", status_code=303)
         data = _json.loads(rec.wizard_data)
         employer = employer_info(db)
-        pdf = fill_w4(data, employer) if kind == "w4" else fill_i9(data, employer)
-        filename = f"{'W-4' if kind == 'w4' else 'I-9'}_{user.last_name}_{user.first_name}.pdf"
+        try:
+            if kind == "w4":
+                pdf = fill_w4(data, employer)
+                label = "W-4"
+            elif kind == "i9":
+                pdf = fill_i9(data, employer)
+                label = "I-9"
+            else:
+                pdf = fill_de4(data, employer)
+                label = "DE-4"
+        except FileNotFoundError as exc:
+            flash(request, str(exc), "error")
+            return RedirectResponse(f"/employee/onboarding/wizard/{kind}", status_code=303)
+        filename = f"{label}_{user.last_name}_{user.first_name}.pdf"
         return Response(
             content=pdf,
             media_type="application/pdf",
@@ -328,6 +554,10 @@ def register_onboarding_routes(router):
             return RedirectResponse("/employee/onboarding/wizard/w4", status_code=303)
         if doc.doc_type == "i9_wizard":
             return RedirectResponse("/employee/onboarding/wizard/i9", status_code=303)
+        if doc.doc_type == "direct_deposit_wizard":
+            return RedirectResponse("/employee/onboarding/wizard/direct_deposit", status_code=303)
+        if doc.doc_type == "de4_wizard":
+            return RedirectResponse("/employee/onboarding/wizard/de4", status_code=303)
         _ensure_onboarding_records(db, user)
         rec = db.query(models.EmployeeOnboarding).filter_by(
             employee_id=user.id, document_id=doc_id

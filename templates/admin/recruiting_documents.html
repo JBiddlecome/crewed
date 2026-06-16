@@ -26,6 +26,8 @@
 .doc-badge.pdf { background:#fee2e2; color:#dc2626; }
 .doc-badge.w4_wizard { background:#dbeafe; color:#2563eb; }
 .doc-badge.i9_wizard { background:#d1fae5; color:#059669; }
+.doc-badge.de4_wizard { background:#fef3c7; color:#b45309; }
+.doc-badge.direct_deposit_wizard { background:#ede9fe; color:#7c3aed; }
 .doc-badge.sig { background:#fef3c7; color:#92400e; }
 .doc-card-actions { display:flex; gap:8px; }
 .doc-card-actions a, .doc-card-actions button { flex:1; text-align:center; padding:7px; font-size:.78rem; font-weight:600; border-radius:8px; cursor:pointer; text-decoration:none; transition:all .15s; }
@@ -39,7 +41,7 @@
 .upload-card h3 { font-size:1rem; font-weight:700; margin:0 0 16px; }
 .upload-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .upload-form-grid .full { grid-column:1/-1; }
-.doc-type-selector { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.doc-type-selector { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
 .doc-type-opt { cursor:pointer; }
 .doc-type-opt input { display:none; }
 .doc-type-opt .opt-card { border:2px solid var(--border); border-radius:10px; padding:10px; text-align:center; transition:all .15s; }
@@ -78,6 +80,20 @@
               <span>I-9 Wizard</span>
             </div>
           </label>
+          <label class="doc-type-opt">
+            <input type="radio" name="doc_type" value="de4_wizard" onchange="toggleFileInput(this)">
+            <div class="opt-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              <span>CA DE-4 Wizard</span>
+            </div>
+          </label>
+          <label class="doc-type-opt">
+            <input type="radio" name="doc_type" value="direct_deposit_wizard" onchange="toggleFileInput(this)">
+            <div class="opt-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              <span>Direct Deposit</span>
+            </div>
+          </label>
         </div>
       </div>
       <div>
@@ -113,14 +129,18 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       {% elif doc.doc_type == 'w4_wizard' %}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      {% else %}
+      {% elif doc.doc_type == 'i9_wizard' %}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      {% elif doc.doc_type == 'de4_wizard' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
       {% endif %}
     </div>
     <h3>{{ doc.name }}</h3>
     <p class="doc-desc">{{ doc.description or 'No description.' }}</p>
     <div class="doc-meta">
-      <span class="doc-badge {{ doc.doc_type }}">{{ {'pdf':'PDF','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard'}.get(doc.doc_type, doc.doc_type) }}</span>
+      <span class="doc-badge {{ doc.doc_type }}">{{ {'pdf':'PDF','w4_wizard':'W-4 Wizard','i9_wizard':'I-9 Wizard','de4_wizard':'CA DE-4 Wizard','direct_deposit_wizard':'Direct Deposit'}.get(doc.doc_type, doc.doc_type) }}</span>
       {% if doc.requires_signature %}<span class="doc-badge sig">Requires Signature</span>{% endif %}
       {% if doc.doc_type == 'pdf' %}<span class="field-count">{{ doc.fields|length }} field{{ 's' if doc.fields|length != 1 }}</span>{% endif %}
     </div>

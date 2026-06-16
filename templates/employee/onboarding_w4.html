@@ -28,11 +28,16 @@
 
 .filing-opts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
 .filing-opt input { display:none; }
-.filing-opt .opt { border:2px solid var(--border); border-radius:10px; padding:12px; text-align:center; cursor:pointer; transition:all .15s; }
-.filing-opt input:checked + .opt { border-color:var(--accent); background:var(--accent-soft); }
-.filing-opt .opt-title { font-weight:700; font-size:.88rem; color:var(--text); }
-.filing-opt .opt-sub { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
-.filing-opt input:checked + .opt .opt-title { color:var(--accent); }
+.filing-opt .opt { border:2px solid var(--border); border-radius:10px; padding:14px 12px; text-align:center; cursor:pointer; transition:all .2s; position:relative; }
+.filing-opt .opt:hover { border-color:var(--accent); background:var(--accent-soft); }
+.filing-opt input:checked + .opt { border-color:var(--accent); background:var(--accent); box-shadow:0 4px 14px rgba(0,0,0,.18); transform:translateY(-1px); }
+.filing-opt input:checked + .opt::after { content:'✓'; position:absolute; top:7px; right:10px; font-size:.8rem; font-weight:800; color:#fff; opacity:.9; }
+.filing-opt .opt-title { font-weight:700; font-size:.88rem; color:var(--text); transition:color .2s; }
+.filing-opt .opt-sub { font-size:.72rem; color:var(--text-muted); margin-top:3px; transition:color .2s; }
+.filing-opt input:checked + .opt .opt-title { color:#fff; }
+.filing-opt input:checked + .opt .opt-sub { color:rgba(255,255,255,.8); }
+.filing-status-required { font-size:.75rem; font-weight:700; color:#dc2626; margin-bottom:8px; display:none; }
+.filing-status-required.show { display:block; }
 
 .sig-input { font-family:'Dancing Script', cursive, serif; font-size:1.4rem; font-weight:700; color:#1a1a2e; letter-spacing:.02em; }
 .sig-line { border-top:2px solid #333; margin-top:4px; padding-top:4px; }
@@ -91,20 +96,39 @@
         <input class="input" name="last_name" type="text" placeholder="Doe" value="{{ data.get('last_name','') }}" required>
       </div>
       <div>
-        <label class="label">Address</label>
-        <input class="input" name="address" type="text" placeholder="123 Main St" value="{{ data.get('address','') }}">
-      </div>
-      <div>
-        <label class="label">City, State, ZIP</label>
-        <input class="input" name="city_state_zip" type="text" placeholder="Los Angeles, CA 90001" value="{{ data.get('city_state_zip','') }}">
+        <label class="label">Date of Birth *</label>
+        <input class="input" name="dob" type="date" value="{{ data.get('dob','') }}" required>
       </div>
       <div>
         <label class="label">Social Security Number *</label>
         <input class="input" name="ssn" type="text" maxlength="11" placeholder="XXX-XX-XXXX" value="{{ data.get('ssn','') }}" pattern="\d{3}-?\d{2}-?\d{4}" required>
       </div>
+      <div class="full">
+        <label class="label">Street Address</label>
+        <input class="input" name="address" type="text" placeholder="123 Main St" value="{{ data.get('address','') }}">
+      </div>
+      <div>
+        <label class="label">City</label>
+        <input class="input" name="city" type="text" placeholder="Los Angeles" value="{{ data.get('city','') }}">
+      </div>
+      <div>
+        <label class="label">State</label>
+        <select class="input" name="state">
+          <option value="">Select state…</option>
+          {% for code, name in us_states %}
+          <option value="{{ code }}" {{ 'selected' if data.get('state') == code }}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="label">ZIP Code</label>
+        <input class="input" name="zip" type="text" maxlength="10" placeholder="90001" value="{{ data.get('zip','') }}">
+      </div>
     </div>
     <div style="margin-top:18px;">
-      <label class="label">Filing Status *</label>
+      <label class="label">Filing Status <span style="color:#dc2626;">*</span></label>
+      <p style="font-size:.78rem; color:var(--text-muted); margin:0 0 10px;">Select the option that matches your tax situation. The selected card will turn solid blue.</p>
+      <div id="filing-status-error" class="filing-status-required">Please select a filing status before continuing.</div>
       <div class="filing-opts">
         <label class="filing-opt">
           <input type="radio" name="filing_status" value="Single" {{ 'checked' if data.get('filing_status') == 'Single' }} required>
@@ -123,7 +147,7 @@
   </div>
   <div class="wizard-nav">
     <span></span>
-    <button type="button" class="btn" onclick="goStep(2)">Next → Multiple Jobs</button>
+    <button type="button" class="btn" onclick="validateStep1()">Next → Multiple Jobs</button>
   </div>
 </div>
 
@@ -231,6 +255,19 @@
 
 <script>
 let currentStep = 1;
+
+function validateStep1() {
+  const selected = document.querySelector('input[name="filing_status"]:checked');
+  const err = document.getElementById('filing-status-error');
+  if (!selected) {
+    err.classList.add('show');
+    err.scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+  err.classList.remove('show');
+  goStep(2);
+}
+
 function goStep(n) {
   document.getElementById('step-' + currentStep).classList.remove('active');
   document.getElementById('step-tab-' + currentStep).classList.remove('active');

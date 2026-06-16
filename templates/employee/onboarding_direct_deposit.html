@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Direct Deposit — Onboarding — Crewed{% endblock %}
+{% block heading %}Direct Deposit Setup{% endblock %}
+{% block subheading %}<p class="subheading">Set up your bank account to receive your paychecks</p>{% endblock %}
+{% block actions %}
+  <a href="/employee/onboarding" class="btn btn-outline">← Back to Onboarding</a>
+{% endblock %}
+
+{% block content %}
+<style>
+.wizard-layout { max-width:640px; margin:0 auto; }
+
+.form-card { background:var(--surface); border:1.5px solid var(--border); border-radius:16px; padding:24px 28px; margin-bottom:18px; }
+.form-card h3 { font-size:.95rem; font-weight:700; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+.form-card .section-label { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); margin-bottom:4px; }
+.form-card .hint { font-size:.78rem; color:var(--text-muted); margin:0 0 16px; line-height:1.5; background:var(--surface-alt); padding:10px 12px; border-radius:8px; border-left:3px solid var(--accent); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-grid .full { grid-column:1/-1; }
+
+.acct-opts { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
+.acct-opt input { display:none; }
+.acct-opt .opt { border:2px solid var(--border); border-radius:10px; padding:14px 12px; text-align:center; cursor:pointer; transition:all .15s; }
+.acct-opt input:checked + .opt { border-color:var(--accent); background:var(--accent-soft); }
+.acct-opt .opt-icon { font-size:1.5rem; display:block; margin-bottom:4px; }
+.acct-opt .opt-title { font-weight:700; font-size:.9rem; color:var(--text); }
+.acct-opt input:checked + .opt .opt-title { color:var(--accent); }
+
+.check-diagram { background:var(--surface-alt); border:1.5px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+.check-diagram-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin-bottom:8px; }
+.check-diagram-img { font-family:monospace; font-size:.75rem; line-height:1.8; color:var(--text); white-space:pre; }
+
+.info-note { background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:10px; padding:12px 14px; font-size:.78rem; color:#1e40af; line-height:1.5; margin-bottom:20px; }
+.already-done { background:#d1fae5; border:1.5px solid #6ee7b7; border-radius:12px; padding:16px 20px; font-size:.88rem; color:#065f46; font-weight:600; margin-bottom:20px; }
+
+.wizard-nav { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+</style>
+
+<div class="wizard-layout">
+
+{% if rec and rec.status == 'complete' %}
+<div class="already-done">
+  ✓ Direct deposit information already submitted. <a href="/employee/onboarding" style="color:var(--accent);">Back to onboarding</a>
+</div>
+{% endif %}
+
+<div class="info-note">
+  <strong>Your information is secure.</strong> Your bank account details are encrypted and used only to set up direct deposit for your paychecks. All paychecks will be deposited as a single payment to the account below.
+</div>
+
+<form method="post" action="/employee/onboarding/wizard/direct_deposit" id="dd-form">
+
+  <div class="form-card">
+    <div class="section-label">Bank Account</div>
+    <h3>Bank Information</h3>
+    <div class="hint">Enter the information exactly as it appears on your checks or bank statement. Your routing number is 9 digits and identifies your bank. Your account number is typically 8–12 digits.</div>
+
+    <div class="check-diagram">
+      <div class="check-diagram-label">Where to find these numbers on a check</div>
+      <div class="check-diagram-img">  ┌─────────────────────────────────────────────┐
+  │  Pay to: ___________________   $________  │
+  │                                           │
+  │  ⎣Routing #⎦  ⎣Account #⎦  ⎣Check #⎦    │
+  └─────────────────────────────────────────────┘
+  ↑ 9 digits     ↑ Your account number</div>
+    </div>
+
+    <div class="form-grid">
+      <div class="full">
+        <label class="label">Bank Name *</label>
+        <input class="input" name="bank_name" type="text" placeholder="e.g. Chase, Wells Fargo, Bank of America" value="{{ data.get('bank_name','') }}" required>
+      </div>
+      <div>
+        <label class="label">Routing Number * <span style="font-weight:400;color:var(--text-muted)">(9 digits)</span></label>
+        <input class="input" name="routing_number" type="text" inputmode="numeric" maxlength="9" placeholder="123456789" value="{{ data.get('routing_number','') }}" pattern="\d{9}" required>
+      </div>
+      <div></div>
+      <div>
+        <label class="label">Account Number *</label>
+        <input class="input" name="account_number" type="password" inputmode="numeric" maxlength="17" placeholder="••••••••••" required autocomplete="off">
+      </div>
+      <div>
+        <label class="label">Confirm Account Number *</label>
+        <input class="input" name="confirm_account_number" type="text" inputmode="numeric" maxlength="17" placeholder="Re-enter account number" required autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="section-label">Account Type</div>
+    <h3>Select Account Type *</h3>
+    <div class="acct-opts">
+      <label class="acct-opt">
+        <input type="radio" name="account_type" value="checking" {{ 'checked' if data.get('account_type') == 'checking' }} required>
+        <div class="opt">
+          <span class="opt-icon">🏦</span>
+          <div class="opt-title">Checking</div>
+        </div>
+      </label>
+      <label class="acct-opt">
+        <input type="radio" name="account_type" value="savings" {{ 'checked' if data.get('account_type') == 'savings' }}>
+        <div class="opt">
+          <span class="opt-icon">🐷</span>
+          <div class="opt-title">Savings</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <button type="submit" class="btn">Save Direct Deposit Info</button>
+  </div>
+
+</form>
+</div>
+
+<script>
+// Show existing account number masked if already on file
+(function () {
+  {% if rec and rec.status == 'complete' and data.get('account_number') %}
+  const acctField = document.querySelector('input[name="account_number"]');
+  const confirmField = document.querySelector('input[name="confirm_account_number"]');
+  if (acctField) acctField.placeholder = '•'.repeat({{ data.get('account_number','') | length }}) + ' (saved)';
+  if (confirmField) confirmField.placeholder = 'Enter to change, or leave blank to keep';
+  {% endif %}
+})();
+</script>
+{% endblock %}
