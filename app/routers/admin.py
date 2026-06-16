@@ -914,3 +914,125 @@ def admin_decline_position(
         flash(request, f"Manually declined {ep.position.name} for {ep.employee.name}.")
     return RedirectResponse("/admin/employees", status_code=303)
 
+
+# ---------- Tickets ----------
+
+_TICKET_DEPARTMENTS = [
+    "Engineering", "Design", "Product", "Marketing", "Sales",
+    "Operations", "Finance", "HR", "Legal", "Support", "Other",
+]
+
+
+@router.get("/tickets")
+def tickets_list(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    tickets = (
+        db.query(models.Ticket)
+        .order_by(
+            models.Ticket.status,
+            models.Ticket.created_at.desc(),
+        )
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/tickets.html",
+        {"user": user, "tickets": tickets},
+    )
+
+
+@router.get("/tickets/new")
+def ticket_new_form(
+    request: Request,
+    user: models.User = Depends(require("admin")),
+):
+    return templates.TemplateResponse(
+        request,
+        "admin/ticket_form.html",
+        {"user": user, "ticket": None, "departments": _TICKET_DEPARTMENTS},
+    )
+
+
+@router.post("/tickets/new")
+def ticket_new_submit(
+    request: Request,
+    title: str = Form(...),
+    department: str = Form(...),
+    description: str = Form(""),
+    priority: str = Form("yellow"),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ticket = models.Ticket(
+        title=title.strip(),
+        department=department.strip(),
+        description=description.strip(),
+        priority=priority if priority in ("green", "yellow", "red") else "yellow",
+    )
+    db.add(ticket)
+    db.commit()
+    flash(request, "Ticket created.")
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@router.get("/tickets/{ticket_id}/edit")
+def ticket_edit_form(
+    ticket_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ticket = db.get(models.Ticket, ticket_id)
+    if not ticket:
+        flash(request, "Ticket not found.", "error")
+        return RedirectResponse("/admin/tickets", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "admin/ticket_form.html",
+        {"user": user, "ticket": ticket, "departments": _TICKET_DEPARTMENTS},
+    )
+
+
+@router.post("/tickets/{ticket_id}/edit")
+def ticket_edit_submit(
+    ticket_id: int,
+    request: Request,
+    title: str = Form(...),
+    department: str = Form(...),
+    description: str = Form(""),
+    priority: str = Form("yellow"),
+    status: str = Form("open"),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ticket = db.get(models.Ticket, ticket_id)
+    if not ticket:
+        flash(request, "Ticket not found.", "error")
+        return RedirectResponse("/admin/tickets", status_code=303)
+    ticket.title = title.strip()
+    ticket.department = department.strip()
+    ticket.description = description.strip()
+    ticket.priority = priority if priority in ("green", "yellow", "red") else "yellow"
+    ticket.status = status if status in ("open", "in_progress", "done") else "open"
+    db.commit()
+    flash(request, "Ticket updated.")
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@router.post("/tickets/{ticket_id}/delete")
+def ticket_delete(
+    ticket_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ticket = db.get(models.Ticket, ticket_id)
+    if ticket:
+        db.delete(ticket)
+        db.commit()
+        flash(request, "Ticket deleted.")
+    return RedirectResponse("/admin/tickets", status_code=303)
+

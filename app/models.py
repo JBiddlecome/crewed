@@ -461,3 +461,19 @@ class EmployeeOnboardingFieldValue(Base):
 
     onboarding_record = relationship("EmployeeOnboarding", back_populates="field_values")
     field = relationship("OnboardingField", back_populates="values")
+
+
+# ──────────────────────────────────────────────────────────────
+# Project Management Tickets
+# ──────────────────────────────────────────────────────────────
+
+class Ticket(Base):
+    __tablename__ = "ticket"
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    department = Column(String, nullable=False)
+    description = Column(Text)
+    priority = Column(String, default="yellow", nullable=False)  # green | yellow | red
+    status = Column(String, default="open", nullable=False)      # open | in_progress | done
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
