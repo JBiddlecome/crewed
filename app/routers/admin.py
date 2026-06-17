@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..auth import require
+from ..auth import hash_password, require
 from ..db import get_db
 from ..helpers import (
     STATE_NAMES,
@@ -84,8 +84,14 @@ def clients(
     db: Session = Depends(get_db),
 ):
     rows = db.query(models.ClientCompany).order_by(models.ClientCompany.name).all()
+    unlinked_users = (
+        db.query(models.User)
+        .filter_by(role="client", client_id=None)
+        .order_by(models.User.created_at.desc())
+        .all()
+    )
     return templates.TemplateResponse(
-        request, "admin/clients.html", {"user": user, "clients": rows}
+        request, "admin/clients.html", {"user": user, "clients": rows, "unlinked_users": unlinked_users}
     )
 
 
@@ -135,6 +141,7 @@ def create_client(
         industry=industry.strip() or None,
         status=status,
         notes=notes.strip() or None,
+        portal_approved=True,  # admin-created companies are pre-approved
     )
     db.add(company)
     db.commit()
@@ -234,6 +241,12 @@ def client_detail(
         .order_by(models.User.first_name, models.User.last_name)
         .all()
     )
+    unlinked_users = (
+        db.query(models.User)
+        .filter_by(role="client", client_id=None)
+        .order_by(models.User.created_at.desc())
+        .all()
+    )
     return templates.TemplateResponse(
         request,
         "admin/client_detail.html",
@@ -248,6 +261,7 @@ def client_detail(
             "alist": alist_entries,
             "blocklist": blocklist_entries,
             "employees": employees,
+            "unlinked_users": unlinked_users,
         },
     )
 
@@ -278,6 +292,79 @@ def set_client_markup(
         company.markup_override = value
         flash(request, f"{company.name} markup set to {value:g}%.")
     db.commit()
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/approve")
+def approve_client(
+    client_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    company.portal_approved = True
+    db.commit()
+    flash(request, f"{company.name} has been approved — they can now place shifts.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/portal-users")
+def add_portal_user(
+    client_id: int,
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    email = email.strip().lower()
+    if len(password) < 8:
+        flash(request, "Password must be at least 8 characters.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+    if db.query(models.User).filter_by(email=email).first():
+        flash(request, "An account with that email already exists.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+    portal_user = models.User(
+        email=email,
+        password_hash=hash_password(password),
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        role="client",
+        status="active",
+        client_id=company.id,
+    )
+    db.add(portal_user)
+    db.commit()
+    flash(request, f"Portal user {portal_user.name} added to {company.name}.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/attach-user/{uid}")
+def attach_user_to_client(
+    client_id: int,
+    uid: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    target_user = db.get(models.User, uid)
+    if not company or not target_user or target_user.role != "client":
+        flash(request, "Invalid client or user.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    target_user.client_id = company.id
+    db.commit()
+    flash(request, f"{target_user.name} has been linked to {company.name}.")
     return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
 
 
@@ -965,6 +1052,7 @@ def admin_approve_photo(
         flash(request, "Employee not found.", "error")
     else:
         emp.profile_picture_approved = True
+        emp.profile_picture_declined = False
         db.commit()
         flash(request, f"Approved profile picture for {emp.name}.")
     return RedirectResponse("/admin/employees", status_code=303)
@@ -986,6 +1074,7 @@ def admin_reject_photo(
             delete_file("profile_pictures", emp.profile_picture)
         emp.profile_picture = None
         emp.profile_picture_approved = False
+        emp.profile_picture_declined = False
         db.commit()
         flash(request, f"Rejected and removed profile picture for {emp.name}.")
     return RedirectResponse("/admin/employees", status_code=303)
@@ -1026,6 +1115,27 @@ def admin_decline_position(
         db.commit()
         flash(request, f"Manually declined {ep.position.name} for {ep.employee.name}.")
     return RedirectResponse("/admin/employees", status_code=303)
+
+
+@router.post("/employee-position/{ep_id}/set-level")
+def admin_set_position_level(
+    ep_id: int,
+    request: Request,
+    level: int = Form(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    ep = db.get(models.EmployeePosition, ep_id)
+    if not ep:
+        flash(request, "Employee position record not found.", "error")
+        return RedirectResponse("/admin/employees", status_code=303)
+    if level not in (1, 2, 3):
+        flash(request, "Invalid level — must be 1, 2, or 3.", "error")
+        return RedirectResponse(f"/admin/employees/{ep.user_id}", status_code=303)
+    ep.level = level
+    db.commit()
+    flash(request, f"Set {ep.position.name} to Level {level} for {ep.employee.name}.")
+    return RedirectResponse(f"/admin/employees/{ep.user_id}", status_code=303)
 
 
 # ---------- Tickets ----------

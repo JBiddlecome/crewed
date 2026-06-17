@@ -7,11 +7,26 @@
     <a class="brand" href="/">Crewed<span class="dot">.</span></a>
     <h1>Staff your business</h1>
     <p class="sub">Create your company account — it takes a minute</p>
-    <form method="post" action="/signup/client">
-      <div class="field">
-        <label for="company_name">Company name</label>
-        <input id="company_name" name="company_name" required>
+    <form method="post" action="/signup/client" id="client-signup-form">
+
+      <div class="field" style="margin-bottom:18px">
+        <label style="font-size:.85rem;font-weight:600;margin-bottom:8px;display:block">Does your company already have a Crewed account?</label>
+        <div style="display:flex;gap:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;padding:10px 16px;border:1.5px solid var(--line);border-radius:8px;flex:1;transition:border-color .15s" id="label-no">
+            <input type="radio" name="has_company_account" value="no" checked onchange="toggleCompanyField(this)"> No, create a new account
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;padding:10px 16px;border:1.5px solid var(--line);border-radius:8px;flex:1;transition:border-color .15s" id="label-yes">
+            <input type="radio" name="has_company_account" value="yes" onchange="toggleCompanyField(this)"> Yes, my company is already set up
+          </label>
+        </div>
+        <div class="hint" id="company-hint" style="margin-top:8px">An admin will link your login to your company account.</div>
       </div>
+
+      <div id="company-name-field" class="field">
+        <label for="company_name">Company name</label>
+        <input id="company_name" name="company_name">
+      </div>
+
       <div class="form-row">
         <div class="field">
           <label for="first_name">First name</label>
@@ -41,4 +56,35 @@
     Already have an account? <a href="/login">Sign in</a></p>
   </div>
 </div>
+
+<script>
+(function () {
+  var companyField = document.getElementById('company-name-field');
+  var companyInput = document.getElementById('company_name');
+  var hint = document.getElementById('company-hint');
+  var labelNo = document.getElementById('label-no');
+  var labelYes = document.getElementById('label-yes');
+
+  function setSelected(value) {
+    if (value === 'yes') {
+      companyField.style.display = 'none';
+      companyInput.removeAttribute('required');
+      hint.style.display = 'block';
+      labelYes.style.borderColor = 'var(--coral)';
+      labelNo.style.borderColor = 'var(--line)';
+    } else {
+      companyField.style.display = '';
+      companyInput.setAttribute('required', '');
+      hint.style.display = 'none';
+      labelNo.style.borderColor = 'var(--coral)';
+      labelYes.style.borderColor = 'var(--line)';
+    }
+  }
+
+  window.toggleCompanyField = function (radio) { setSelected(radio.value); };
+
+  // Init state
+  setSelected('no');
+})();
+</script>
 {% endblock %}

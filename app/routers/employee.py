@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..auth import require
 from ..db import get_db
-from ..storage import upload_file
+from ..storage import upload_file, get_presigned_url
 from ..helpers import (
     US_STATES,
     details_map,
@@ -51,64 +51,182 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
         raise ValueError("Unsupported file type. Please upload a PDF or TXT file.")
 
 
-def screen_candidate_for_position(resume_text: str, position_name: str, position_description: str) -> tuple[bool, str]:
+_POSITION_KEY_MAP = {
+    "cook": "Cook",
+    "prep_cook": "Prep Cook",
+    "dishwasher": "Dishwasher",
+    "utility": "Utility",
+    "server": "Server",
+    "host": "Host",
+    "runner": "Runner",
+    "busser": "Busser",
+    "bartender": "Bartender",
+    "barback": "Barback",
+    "cashier": "Cashier",
+    "pastry": "Pastry",
+    "baker": "Baker",
+    "sushi": "Sushi",
+    "concessions": "Concessions",
+    "barista": "Barista",
+    "valet": "Valet",
+    "event_supervisor": "Event Supervisor",
+    "sous_chef": "Sous Chef",
+}
+_POSITION_NAME_TO_KEY = {v: k for k, v in _POSITION_KEY_MAP.items()}
+
+_POSITION_SYSTEM_PROMPT = (
+    "You are a resume screener for a hospitality staffing agency.\n"
+    "The user will send you a resume (as text or transcribed from a PDF/Word doc/image)\n"
+    "together with self-reported experience text.\n"
+    "Your job is to decide how qualified the candidate is for specific hospitality positions.\n"
+    "Count experience at fine-dining or equivalent venues normally, but treat fast-food\n"
+    "experience differently (see updated rules below).\n\n"
+    "Target positions\n\n"
+    "Evaluate the candidate for these positions:\n\n"
+    "Cook\nPrep Cook\nDishwasher\nUtility\nServer\nHost\nRunner\nBusser\nBartender\n"
+    "Barback\nCashier\nPastry\nBaker\nSushi\nConcessions\nBarista\nValet\nEvent Supervisor\nSous Chef\n\n"
+    "Venue rules (VERY IMPORTANT)\n\n"
+    "Fast-food or clearly quick-service chains (McDonald's, Burger King, Wendy's, Taco Bell, KFC, In-N-Out, "
+    "Chick-fil-A, similar) DO qualify, BUT ONLY for Level 1 and ONLY if the role performed directly matches "
+    "one of the target positions. Fast-food experience should never count toward Level 2 or Level 3.\n\n"
+    "For Level 2 or Level 3 qualification count only experience at fine dining or equivalent hospitality "
+    "venues: hotels, resorts, country clubs, upscale restaurants, steakhouses, chef-driven or white-tablecloth "
+    "concepts, banquet/catering companies, convention centers, stadiums, arenas, large event venues, or "
+    "corporate/contract dining for companies, universities, hospitals when clearly hospitality-related.\n\n"
+    "Ignore non-hospitality jobs entirely (admin, warehouse, rideshare, retail, etc.).\n\n"
+    "Special rule for Event Supervisor: requires a minimum of 3 years of management or supervisory experience "
+    "in the hotel, food & beverage, or hospitality industry.\n\n"
+    "Special rule for Sous Chef: requires a minimum of 3 years of qualifying experience. If less than 3 years, "
+    "you MUST assign no_experience. 3-5 years = level_2; >5 years = level_3.\n\n"
+    "Experience categorization:\n"
+    "- level_1: less than 2 years combined qualifying experience (all fast-food always counts as level_1)\n"
+    "- level_2: 2 to 5 years combined qualifying experience at non-fast-food venues\n"
+    "- level_3: more than 5 years qualifying experience at non-fast-food venues\n"
+    "- no_experience: neither qualifying nor fast-food experience for that role\n\n"
+    "Output format — return valid JSON ONLY, no text outside the JSON:\n"
+    '{"candidate_summary":{"hospitality_experience_overview":"","total_hospitality_years_estimate":0.0,'
+    '"notable_venues":[],"notes_on_fast_food_or_non_qualifying_experience":""},'
+    '"positions":{'
+    '"cook":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"prep_cook":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"dishwasher":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"utility":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"server":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"host":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"runner":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"busser":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"bartender":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"barback":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"cashier":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"pastry":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"baker":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"sushi":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"concessions":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"barista":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"valet":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"event_supervisor":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]},'
+    '"sous_chef":{"status":"no_experience","estimated_years":0.0,"confidence":0.0,"reasons":[]}'
+    "}}"
+)
+
+
+_PICTURE_PROMPT = (
+    "Evaluate this profile picture. Approve if ALL criteria are met:\n"
+    "- Face forward (deny if turned 45°+ sideways or obscured)\n"
+    "- Face close to camera and in focus\n"
+    "- No sunglasses or masks (hats OK if eyes visible; prescription glasses are ALWAYS OK if eyes are visible through lenses)\n"
+    "- No heavy beauty filters or AR distortions\n"
+    "- No nudity, hate symbols, offensive gestures, or weapons\n\n"
+    'Respond with JSON only:\n{"suitable": true|false, "reason": "polite explanation if false", "confidence": 0.0-1.0}'
+)
+
+
+def evaluate_profile_picture(filename: str) -> tuple[bool, str]:
+    """Returns (approved, reason). reason='pending' signals fall-back to manual admin approval."""
     is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if is_test or not api_key:
-        return True, "Auto-approved (Test mode or missing OPENAI_API_KEY)"
+    if is_test:
+        return True, "test"
+
+    api_key = os.environ.get("PROFILE_PICTURE_APPROVAL")
+    if not api_key:
+        return False, "pending"
+
+    import json
+    import logging
 
     try:
         from openai import OpenAI
+
+        image_url = get_presigned_url("profile_pictures", filename, expiry=300)
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": _PICTURE_PROMPT},
+                    {"type": "image_url", "image_url": {"url": image_url, "detail": "low"}},
+                ],
+            }],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content or ""
+        result = json.loads(content)
+        return bool(result.get("suitable", False)), result.get("reason", "")
+    except Exception as e:
+        logging.exception("Profile picture AI evaluation failed")
+        return False, f"ai_error: {e}"
+
+
+def screen_candidate_for_position(resume_text: str, position_name: str, experience_text: str = "") -> tuple[bool, str]:
+    """Returns (approved, reason). Approved positions are always set to level 2 by default."""
+    is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
+    api_key = os.environ.get("POSITION_REQUESTS")
+    if is_test or not api_key:
+        return True, "Auto-approved (test mode or missing POSITION_REQUESTS key)"
+
+    position_key = _POSITION_NAME_TO_KEY.get(position_name)
+    if not position_key:
+        return False, f"Unknown position: {position_name}"
+
+    try:
+        from openai import OpenAI
+        import json
         client = OpenAI(api_key=api_key)
 
-        system_prompt = f"""You are an AI resume screening assistant for a hospitality staffing agency.
-Your task is to evaluate the candidate's resume and determine if they qualify for the requested position.
+        user_message = (
+            "Resume and experience information for evaluation. Return only the JSON schema provided.\n\n"
+            f"User provided experience:\n{experience_text or 'Not provided'}\n\n"
+            f"Resume text:\n{resume_text}"
+        )
 
-Requested Position: {position_name}
-Position Requirements/Description: {position_description or "General hospitality experience."}
-
-Evaluation Rules:
-1. Examine the candidate's work history in the resume.
-2. Estimate the total years of relevant experience for the requested position.
-3. Fast-food experience (e.g. McDonald's, Burger King, Wendy's, Taco Bell, KFC, etc.) qualifies ONLY for entry-level / Level 1 roles (Server, Busser, Cashier, prep roles) and should not count as upscale or specialized experience.
-4. Specific position rules:
-   - Event Captain / Supervisor: Requires at least 3 years of management or supervisory experience in hospitality (hotels, restaurants, events).
-   - Bartender: Requires at least 1 year of bartending experience.
-   - Cook / Line Cook: Requires at least 1-2 years of cooking experience.
-   - Dishwasher / Busser / Barback / Food Runner / Host / Utility / Concession Worker / Housekeeper: Entry-level roles. Generally approve if they have any basic customer service, general labor, or hospitality work experience.
-5. Decide if the candidate is "approved" or "declined".
-
-Return your evaluation as a valid JSON object ONLY. Do not include any markdown formatting or text outside the JSON.
-Response Schema:
-{{
-  "qualified": true | false,
-  "estimated_years": 0.0,
-  "reasons": [
-    "Brief explanation of the decision, citing specific roles/venues/durations from the resume."
-  ]
-}}
-"""
-        user_prompt = f"Evaluate the following resume:\n\n{resume_text}"
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": _POSITION_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
             ],
             response_format={"type": "json_object"},
-            temperature=0.2
+            temperature=0.2,
         )
+
         content = response.choices[0].message.content or ""
-        import json
         result = json.loads(content)
-        qualified = bool(result.get("qualified", False))
-        reasons = result.get("reasons", [])
+
+        pos_result = result.get("positions", {}).get(position_key, {})
+        status = pos_result.get("status", "no_experience")
+        reasons = pos_result.get("reasons", [])
         reason_str = "; ".join(reasons) if isinstance(reasons, list) else str(reasons)
         if not reason_str:
             reason_str = "No specific reasons provided by AI."
-        return qualified, reason_str
+
+        if status == "no_experience":
+            return False, reason_str
+        return True, reason_str
+
     except Exception as e:
-        return False, f"AI verification failed due to error: {str(e)}"
+        return False, f"AI verification failed: {str(e)}"
 
 
 @router.get("")
@@ -268,11 +386,20 @@ def upload_photo(
 
     db_user = db.get(models.User, user.id)
     db_user.profile_picture = filename
-    is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
-    db_user.profile_picture_approved = is_test
+    approved, reason = evaluate_profile_picture(filename)
+    db_user.profile_picture_approved = approved
+    db_user.profile_picture_declined = not approved and reason not in ("pending",) and not reason.startswith("ai_error:")
     db.commit()
-    
-    flash(request, "Profile picture uploaded successfully." + (" (Auto-approved under test mode)" if is_test else " Pending admin approval."))
+
+    if approved:
+        is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
+        flash(request, "Profile picture uploaded successfully." + (" (Auto-approved under test mode)" if is_test else ""))
+    elif reason == "pending":
+        flash(request, "Profile picture uploaded successfully. Pending admin approval.")
+    elif reason.startswith("ai_error:"):
+        flash(request, f"Profile picture could not be evaluated ({reason}). Pending admin approval.", "warning")
+    else:
+        flash(request, "Please upload a clear passport style photo looking directly into the camera with no filters or anything covering your face.", "error")
     return RedirectResponse("/employee/profile", status_code=303)
 
 
@@ -348,9 +475,9 @@ def add_position(
 
     is_test = "crewed_test_" in os.environ.get("DATA_DIR", "")
     if is_test:
-        db.add(models.EmployeePosition(user_id=user.id, position_id=position_id, status="approved"))
+        db.add(models.EmployeePosition(user_id=user.id, position_id=position_id, status="approved", level=2))
         db.commit()
-        flash(request, f"Position '{pos.name}' added and auto-approved.")
+        flash(request, f"Position '{pos.name}' added and auto-approved (Level 2).")
         return RedirectResponse("/employee/profile", status_code=303)
         
     db_user = db.get(models.User, user.id)
@@ -358,20 +485,21 @@ def add_position(
         flash(request, "You must upload a resume before adding positions so we can verify your experience.", "error")
         return RedirectResponse("/employee/profile", status_code=303)
         
-    qualified, reason = screen_candidate_for_position(db_user.resume_text, pos.name, pos.description)
+    qualified, reason = screen_candidate_for_position(db_user.resume_text, pos.name)
     status = "approved" if qualified else "declined"
-    
+
     ep = models.EmployeePosition(
         user_id=user.id,
         position_id=position_id,
         status=status,
-        decline_reason=None if qualified else reason
+        level=2,
+        decline_reason=None if qualified else reason,
     )
     db.add(ep)
     db.commit()
-    
+
     if qualified:
-        flash(request, f"Congratulations! You have been automatically approved for '{pos.name}' based on your resume.")
+        flash(request, f"Congratulations! You have been approved for '{pos.name}' (Level 2) based on your resume.")
     else:
         flash(request, f"Sorry, you were not approved for '{pos.name}': {reason}", "error")
         
@@ -455,9 +583,16 @@ def browse(
         a.shift_id
         for a in db.query(models.Assignment).filter_by(employee_id=user.id).all()
     }
+    approved_position_ids = {
+        p.position_id for p in user.positions if p.status == "approved"
+    }
     open_shifts = (
         db.query(models.Shift)
-        .filter(models.Shift.status == "open", models.Shift.shift_date >= today)
+        .filter(
+            models.Shift.status == "open",
+            models.Shift.shift_date >= today,
+            models.Shift.position_id.in_(approved_position_ids) if approved_position_ids else False,
+        )
         .order_by(models.Shift.shift_date, models.Shift.start_time)
         .all()
     )

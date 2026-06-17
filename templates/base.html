@@ -193,6 +193,7 @@
         <a href="/client" class="{{ 'active' if path == '/client' }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
           Dashboard</a>
+        {% if user.company %}
         <a href="/client/shifts" class="{{ 'active' if path.startswith('/client/shifts') }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
           Shifts</a>
@@ -208,6 +209,7 @@
         <a href="/client/timesheets" class="{{ 'active' if path.startswith('/client/timesheets') }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
           Timesheets</a>
+        {% endif %}
       {% else %}
         <a href="/employee" class="{{ 'active' if path == '/employee' }}">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>

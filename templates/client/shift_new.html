@@ -4,6 +4,17 @@
 {% block subheading %}<div class="sub">Qualified crew see it the moment you post.</div>{% endblock %}
 {% block content %}
 
+{% if not_approved %}
+<div id="activation-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:40px 36px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+    <div style="font-size:2.2rem;margin-bottom:12px">⏳</div>
+    <h2 style="margin-bottom:10px">Account not yet activated</h2>
+    <p style="color:var(--muted);margin-bottom:24px">You will be able to place orders as soon as your account is activated.</p>
+    <a class="btn btn-ghost" href="/client">Back to Dashboard</a>
+  </div>
+</div>
+{% else %}
+
 <div class="card" style="max-width:640px">
   <form method="post" action="/client/shifts/new">
     <div class="form-row">
@@ -23,6 +34,15 @@
           <option value="{{ cp.id }}" data-rate="{{ cp.pay_rate }}">{{ cp.position.name }}</option>
           {% endfor %}
         </select>
+      </div>
+      <div class="field">
+        <label for="shift-level">Minimum Level Required</label>
+        <select id="shift-level" name="required_level">
+          <option value="1">Level 1 — any approved employee</option>
+          <option value="2">Level 2 — intermediate &amp; above</option>
+          <option value="3">Level 3 — experienced only</option>
+        </select>
+        <div class="hint">Only employees at or above the selected level can sign up.</div>
       </div>
     </div>
     <div class="form-row">
@@ -60,5 +80,7 @@
     <a class="btn btn-ghost btn-lg" href="/client/shifts">Cancel</a>
   </form>
 </div>
+
+{% endif %}
 
 {% endblock %}

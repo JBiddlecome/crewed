@@ -65,6 +65,7 @@ class ClientCompany(Base):
     status = Column(String, default="active")   # active | prospect | inactive | terminated
     notes = Column(Text)
     markup_override = Column(Float)  # percent; null = use global setting
+    portal_approved = Column(Boolean, default=True)  # False until admin activates new signups
     gusto_company_uuid = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -102,6 +103,7 @@ class User(Base):
     gusto_employee_uuid = Column(String)
     profile_picture = Column(String)
     profile_picture_approved = Column(Boolean, default=False)
+    profile_picture_declined = Column(Boolean, default=False)
     resume_file = Column(String)
     resume_text = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -199,6 +201,7 @@ class EmployeePosition(Base):
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     position_id = Column(Integer, ForeignKey("position.id"), nullable=False)
     status = Column(String, default="pending")  # pending | approved | declined
+    level = Column(Integer, default=2)  # 1 | 2 | 3; set to 2 on AI approval, admin can adjust
     decline_reason = Column(Text)
 
     employee = relationship("User", back_populates="positions")
@@ -236,6 +239,7 @@ class Shift(Base):
     pay_rate = Column(Float, nullable=False)
     bill_rate = Column(Float, nullable=False)  # snapshot: pay * (1 + markup%)
     notes = Column(Text)
+    required_level = Column(Integer, default=1)  # 1 | 2 | 3; minimum employee level required
     parking = Column(Text)  # per-shift override; null = inherit day/location
     check_in_location = Column(Text)
     check_in_contact = Column(Text)

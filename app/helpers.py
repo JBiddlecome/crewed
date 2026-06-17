@@ -72,14 +72,21 @@ def qualifies(db: Session, user: models.User, shift: models.Shift):
     if blocked:
         reasons.append("You are on the block list for this client/location")
 
-    position_ids = {p.position_id for p in user.positions if p.status == "approved"}
-    if shift.position_id not in position_ids:
+    approved_pos = {p.position_id: p for p in user.positions if p.status == "approved"}
+    if shift.position_id not in approved_pos:
         all_positions = {p.position_id: p.status for p in user.positions}
         if shift.position_id in all_positions:
             status = all_positions[shift.position_id]
             reasons.append(f"{shift.position.name} is on your profile but is {status}")
         else:
             reasons.append(f"{shift.position.name} is not on your profile")
+    else:
+        required_level = getattr(shift, "required_level", 1) or 1
+        employee_level = getattr(approved_pos[shift.position_id], "level", 2) or 2
+        if employee_level < required_level:
+            reasons.append(
+                f"This shift requires Level {required_level} {shift.position.name} — you are Level {employee_level}"
+            )
 
     client_position = (
         db.query(models.ClientPosition)

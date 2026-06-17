@@ -162,12 +162,32 @@
     <div class="card" style="padding:24px;">
       <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:12px;">Positions</div>
       {% if emp.positions %}
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
           {% for ep in emp.positions %}
-            <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}">
-              {{ ep.position.name }}
-              <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">({{ ep.status }})</small>
-            </span>
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}">
+                {{ ep.position.name }}
+                {% if ep.status == 'approved' %}
+                  <small style="font-size:0.7rem; font-weight:700; margin-left:4px;">L{{ ep.level or 2 }}</small>
+                {% else %}
+                  <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">({{ ep.status }})</small>
+                {% endif %}
+              </span>
+              {% if ep.status == 'approved' %}
+                {% if (ep.level or 2) > 1 %}
+                <form method="post" action="/admin/employee-position/{{ ep.id }}/set-level" style="display:inline;">
+                  <input type="hidden" name="level" value="{{ (ep.level or 2) - 1 }}">
+                  <button class="btn btn-ghost btn-sm" type="submit" title="Lower level" style="padding:1px 5px; font-size:0.75rem;">▼</button>
+                </form>
+                {% endif %}
+                {% if (ep.level or 2) < 3 %}
+                <form method="post" action="/admin/employee-position/{{ ep.id }}/set-level" style="display:inline;">
+                  <input type="hidden" name="level" value="{{ (ep.level or 2) + 1 }}">
+                  <button class="btn btn-sm" type="submit" title="Raise level" style="padding:1px 5px; font-size:0.75rem;">▲</button>
+                </form>
+                {% endif %}
+              {% endif %}
+            </div>
           {% endfor %}
         </div>
       {% else %}

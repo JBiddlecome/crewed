@@ -15,7 +15,7 @@
             <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}" {% if ep.status == 'declined' and ep.decline_reason %}title="Declined: {{ ep.decline_reason }}"{% endif %}>
               {{ ep.position.name }}
               {% if ep.status == 'approved' %}
-                <small style="color:var(--seafoam-deep); margin-left:4px;">✓</small>
+                <small style="color:var(--seafoam-deep); margin-left:4px;">L{{ ep.level or 2 }} ✓</small>
               {% elif ep.status == 'declined' %}
                 <small style="color:var(--coral-dark); margin-left:4px;" title="{{ ep.decline_reason }}">✗</small>
               {% else %}
@@ -102,6 +102,8 @@
             {% if user.profile_picture %}
               {% if user.profile_picture_approved %}
                 <span class="badge badge-approved">Approved</span>
+              {% elif user.profile_picture_declined %}
+                <span class="badge badge-cancelled">Photo Declined — please re-upload</span>
               {% else %}
                 <span class="badge badge-pending">Pending Approval</span>
               {% endif %}
@@ -109,9 +111,8 @@
               <span class="badge badge-cancelled">Missing photo</span>
             {% endif %}
           </div>
-          <form method="post" action="/employee/profile/photo" enctype="multipart/form-data">
-            <input type="file" name="photo" accept="image/*" required style="font-size:.8rem; margin-bottom:6px; display:block;">
-            <button class="btn btn-sm" type="submit">Upload Photo</button>
+          <form id="photo-form" method="post" action="/employee/profile/photo" enctype="multipart/form-data">
+            <input type="file" name="photo" accept="image/*" required style="font-size:.8rem; margin-bottom:6px; display:block;" onchange="this.form.submit()">
           </form>
         </div>
       </div>
@@ -131,8 +132,7 @@
           {% endif %}
         </div>
         <form method="post" action="/employee/profile/resume" enctype="multipart/form-data">
-          <input type="file" name="resume" accept=".pdf,.txt" required style="font-size:.8rem; margin-bottom:8px; display:block;">
-          <button class="btn btn-sm btn-soft" type="submit">Upload Resume</button>
+          <input type="file" name="resume" accept=".pdf,.txt" required style="font-size:.8rem; display:block;" onchange="this.form.submit()">
         </form>
       </div>
     </div>
