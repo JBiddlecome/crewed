@@ -15,13 +15,40 @@
 <div class="grid grid-2">
   <div class="card">
     <h2>Catalog</h2>
+    <p class="card-note" style="margin-bottom:12px;">Set the default preset rates for these positions. These will apply to new clients or clients switching to Preset Position Rates.</p>
     <table class="table">
-      <thead><tr><th>Position</th><th>In use</th><th class="actions"></th></tr></thead>
+      <thead><tr><th>Position</th><th>Default Rates (Pay / Bill / Markup %)</th><th>In use</th><th class="actions"></th></tr></thead>
       <tbody>
         {% for p in positions %}
         <tr>
           <td class="strong">{{ p.name }}
             {% if p.description %}<div style="color:var(--muted);font-size:.8rem;font-weight:400">{{ p.description }}</div>{% endif %}
+          </td>
+          <td>
+            <details>
+              <summary style="cursor:pointer;font-weight:600;margin-bottom:4px;font-size:0.85rem;">View / Edit Level Rates</summary>
+              <form method="post" action="/admin/positions/{{ p.id }}/update" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 1</span>
+                  <input type="number" id="pay_1_{{ p.id }}" name="default_pay_rate_l1" step="0.01" min="0" value="{{ '%.2f' % p.default_pay_rate_l1 }}" style="width:70px" title="Pay L1" required oninput="updateBillRate('1_{{ p.id }}')">
+                  <input type="number" id="bill_1_{{ p.id }}" name="default_bill_rate_l1" step="0.01" min="0" value="{{ '%.2f' % p.default_bill_rate_l1 }}" style="width:70px" title="Bill L1" required oninput="updateMarkup('1_{{ p.id }}')">
+                  <input type="number" id="markup_1_{{ p.id }}" name="default_markup_l1" step="0.01" min="0" value="{{ '%.2f' % p.default_markup_l1 }}" style="width:70px" title="Markup L1" required oninput="updateBillRate('1_{{ p.id }}')">
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 2</span>
+                  <input type="number" id="pay_2_{{ p.id }}" name="default_pay_rate_l2" step="0.01" min="0" value="{{ '%.2f' % p.default_pay_rate_l2 }}" style="width:70px" title="Pay L2" required oninput="updateBillRate('2_{{ p.id }}')">
+                  <input type="number" id="bill_2_{{ p.id }}" name="default_bill_rate_l2" step="0.01" min="0" value="{{ '%.2f' % p.default_bill_rate_l2 }}" style="width:70px" title="Bill L2" required oninput="updateMarkup('2_{{ p.id }}')">
+                  <input type="number" id="markup_2_{{ p.id }}" name="default_markup_l2" step="0.01" min="0" value="{{ '%.2f' % p.default_markup_l2 }}" style="width:70px" title="Markup L2" required oninput="updateBillRate('2_{{ p.id }}')">
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 3</span>
+                  <input type="number" id="pay_3_{{ p.id }}" name="default_pay_rate_l3" step="0.01" min="0" value="{{ '%.2f' % p.default_pay_rate_l3 }}" style="width:70px" title="Pay L3" required oninput="updateBillRate('3_{{ p.id }}')">
+                  <input type="number" id="bill_3_{{ p.id }}" name="default_bill_rate_l3" step="0.01" min="0" value="{{ '%.2f' % p.default_bill_rate_l3 }}" style="width:70px" title="Bill L3" required oninput="updateMarkup('3_{{ p.id }}')">
+                  <input type="number" id="markup_3_{{ p.id }}" name="default_markup_l3" step="0.01" min="0" value="{{ '%.2f' % p.default_markup_l3 }}" style="width:70px" title="Markup L3" required oninput="updateBillRate('3_{{ p.id }}')">
+                </div>
+                <button type="submit" class="btn btn-sm btn-soft" style="align-self:flex-start;">Save Rates</button>
+              </form>
+            </details>
           </td>
           <td>{% if usage[p.id] %}<span class="chip">{{ usage[p.id] }} uses</span>{% else %}<span style="color:var(--muted)">unused</span>{% endif %}</td>
           <td class="actions">
@@ -44,6 +71,27 @@
         <label for="name">Name</label>
         <input id="name" name="name" required>
       </div>
+      <label style="font-weight:700;margin-top:16px;display:block;font-size:0.8rem;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Default Rates (Pay / Bill / Markup %)</label>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 1</span>
+          <input type="number" id="pay_1_new" name="default_pay_rate_l1" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('1_new')">
+          <input type="number" id="bill_1_new" name="default_bill_rate_l1" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateMarkup('1_new')">
+          <input type="number" id="markup_1_new" name="default_markup_l1" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('1_new')">
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 2</span>
+          <input type="number" id="pay_2_new" name="default_pay_rate_l2" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('2_new')">
+          <input type="number" id="bill_2_new" name="default_bill_rate_l2" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateMarkup('2_new')">
+          <input type="number" id="markup_2_new" name="default_markup_l2" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('2_new')">
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="width:60px;font-size:0.8rem;font-weight:600;color:var(--muted);">Level 3</span>
+          <input type="number" id="pay_3_new" name="default_pay_rate_l3" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('3_new')">
+          <input type="number" id="bill_3_new" name="default_bill_rate_l3" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateMarkup('3_new')">
+          <input type="number" id="markup_3_new" name="default_markup_l3" step="0.01" min="0" value="0.00" style="flex:1" required oninput="updateBillRate('3_new')">
+        </div>
+      </div>
       <div class="field">
         <label for="description">Description <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
         <textarea id="description" name="description" rows="2"></textarea>
@@ -51,6 +99,51 @@
       <button class="btn" type="submit">Add to catalog</button>
     </form>
   </div>
+  
+  <div class="card">
+    <h2>Bulk Upload Rates</h2>
+    <p class="card-note" style="margin-bottom:12px;">Upload an Excel file to bulk update default rates across all positions.</p>
+    <div style="margin-bottom: 16px;">
+      <a href="/admin/positions/template" class="btn btn-sm btn-soft">Download Blank Template</a>
+    </div>
+    <form method="post" action="/admin/positions/upload" enctype="multipart/form-data">
+      <div class="field">
+        <label for="excel_file">Excel File (.xlsx)</label>
+        <input type="file" id="excel_file" name="file" accept=".xlsx" required>
+      </div>
+      <button class="btn" type="submit">Upload &amp; Update Rates</button>
+    </form>
+  </div>
 </div>
+
+<script>
+  function updateMarkup(posId) {
+    const payInput = document.getElementById('pay_' + posId);
+    const billInput = document.getElementById('bill_' + posId);
+    const markupInput = document.getElementById('markup_' + posId);
+    if (!payInput || !billInput || !markupInput) return;
+    
+    const pay = parseFloat(payInput.value) || 0;
+    const bill = parseFloat(billInput.value) || 0;
+    if (pay > 0) {
+      const markup = ((bill - pay) / pay) * 100;
+      markupInput.value = markup.toFixed(2);
+    }
+  }
+  
+  function updateBillRate(posId) {
+    const payInput = document.getElementById('pay_' + posId);
+    const billInput = document.getElementById('bill_' + posId);
+    const markupInput = document.getElementById('markup_' + posId);
+    if (!payInput || !billInput || !markupInput) return;
+    
+    const pay = parseFloat(payInput.value) || 0;
+    const markup = parseFloat(markupInput.value) || 0;
+    if (pay > 0) {
+      const bill = pay * (1 + (markup / 100));
+      billInput.value = bill.toFixed(2);
+    }
+  }
+</script>
 
 {% endblock %}

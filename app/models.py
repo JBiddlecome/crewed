@@ -65,6 +65,7 @@ class ClientCompany(Base):
     status = Column(String, default="active")   # active | prospect | inactive | terminated
     notes = Column(Text)
     markup_override = Column(Float)  # percent; null = use global setting
+    rate_setting = Column(String, default="client_controlled")  # client_controlled | preset_rates
     portal_approved = Column(Boolean, default=True)  # False until admin activates new signups
     gusto_company_uuid = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -72,7 +73,9 @@ class ClientCompany(Base):
     users = relationship("User", back_populates="company")
     locations = relationship("Location", back_populates="company")
     positions = relationship("ClientPosition", back_populates="company")
+    preset_rates = relationship("ClientPresetRate", back_populates="company")
     shifts = relationship("Shift", back_populates="company")
+    events = relationship("Event", back_populates="company")
 
 
 class User(Base):
@@ -131,7 +134,7 @@ class Location(Base):
     city = Column(String, nullable=False)
     state = Column(String, nullable=False)
     zip = Column(String, nullable=False)
-    parking = Column(Text)  # default details; overridable per date and per shift
+    parking = Column(Text)  # default details; overridable per event and per shift
     check_in_location = Column(Text)
     check_in_contact = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -140,8 +143,7 @@ class Location(Base):
 
 
 class LocationDay(Base):
-    """Per-date detail overrides for a location — applies to every shift
-    at that location on that date (unless a shift overrides further)."""
+    """Legacy — superseded by Event. Kept so existing data is not lost on startup."""
 
     __tablename__ = "location_day"
     __table_args__ = (UniqueConstraint("location_id", "date"),)
@@ -155,11 +157,71 @@ class LocationDay(Base):
     location = relationship("Location")
 
 
+class Event(Base):
+    """A booking event — one location on one date, acting as a folder for its shifts.
+
+    Address fields are snapshotted from the Location at creation time so they can
+    be edited independently (e.g. the venue changes its entrance) without touching
+    the master Location record.
+    """
+
+    __tablename__ = "event"
+    __table_args__ = (UniqueConstraint("client_id", "location_id", "event_date"),)
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey("client_company.id"), nullable=False)
+    location_id = Column(Integer, ForeignKey("location.id"), nullable=False)
+    event_date = Column(Date, nullable=False)
+    # Snapshot address — editable independently of the master Location
+    name = Column(String, nullable=False)
+    address1 = Column(String, nullable=False)
+    address2 = Column(String)
+    city = Column(String, nullable=False)
+    state = Column(String, nullable=False)
+    zip = Column(String, nullable=False)
+    # Operational details — shift-level fields override these
+    parking = Column(Text)
+    check_in_location = Column(Text)
+    check_in_contact = Column(Text)
+    notes = Column(Text)
+    status = Column(String, default="active")  # active | cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("ClientCompany", back_populates="events")
+    location = relationship("Location")
+    shifts = relationship("Shift", back_populates="event")
+
+    @property
+    def live_shifts(self):
+        return [s for s in self.shifts if s.status != "cancelled"]
+
+    @property
+    def headcount(self):
+        return sum(s.headcount for s in self.live_shifts)
+
+    @property
+    def confirmed_count(self):
+        return sum(s.confirmed_count for s in self.live_shifts)
+
+
 class Position(Base):
     __tablename__ = "position"
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(Text)
+    default_pay_rate_l1 = Column(Float, nullable=False, default=0)
+    default_bill_rate_l1 = Column(Float, nullable=False, default=0)
+    default_markup_l1 = Column(Float, nullable=False, default=0)
+    default_pay_rate_l2 = Column(Float, nullable=False, default=0)
+    default_bill_rate_l2 = Column(Float, nullable=False, default=0)
+    default_markup_l2 = Column(Float, nullable=False, default=0)
+    default_pay_rate_l3 = Column(Float, nullable=False, default=0)
+    default_bill_rate_l3 = Column(Float, nullable=False, default=0)
+    default_markup_l3 = Column(Float, nullable=False, default=0)
+    
+    # Legacy columns kept to satisfy NOT NULL constraints in existing schema
+    default_pay_rate = Column(Float, default=0)
+    default_bill_rate = Column(Float, default=0)
+    default_markup = Column(Float, default=0)
 
 
 class Certification(Base):
@@ -182,6 +244,58 @@ class ClientPosition(Base):
     certs = relationship(
         "ClientPositionCert", back_populates="client_position", cascade="all, delete-orphan"
     )
+
+
+class ClientPresetRate(Base):
+    __tablename__ = "client_preset_rate"
+    __table_args__ = (UniqueConstraint("client_id", "position_id"),)
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey("client_company.id"), nullable=False)
+    position_id = Column(Integer, ForeignKey("position.id"), nullable=False)
+    pay_rate_l1 = Column(Float, nullable=False, default=0)
+    bill_rate_l1 = Column(Float, nullable=False, default=0)
+    markup_l1 = Column(Float, nullable=False, default=0)
+    pay_rate_l2 = Column(Float, nullable=False, default=0)
+    bill_rate_l2 = Column(Float, nullable=False, default=0)
+    markup_l2 = Column(Float, nullable=False, default=0)
+    pay_rate_l3 = Column(Float, nullable=False, default=0)
+    bill_rate_l3 = Column(Float, nullable=False, default=0)
+    markup_l3 = Column(Float, nullable=False, default=0)
+    
+    # Legacy columns kept to satisfy NOT NULL constraints in existing schema
+    pay_rate = Column(Float, default=0)
+    bill_rate = Column(Float, default=0)
+    markup = Column(Float, default=0)
+
+    company = relationship("ClientCompany", back_populates="preset_rates")
+    position = relationship("Position")
+    history = relationship("ClientPresetRateHistory", back_populates="preset_rate", cascade="all, delete-orphan", order_by="desc(ClientPresetRateHistory.changed_at)")
+
+
+class ClientPresetRateHistory(Base):
+    __tablename__ = "client_preset_rate_history"
+    id = Column(Integer, primary_key=True)
+    client_preset_rate_id = Column(Integer, ForeignKey("client_preset_rate.id"), nullable=False)
+    pay_rate_l1 = Column(Float, nullable=False, default=0)
+    bill_rate_l1 = Column(Float, nullable=False, default=0)
+    markup_l1 = Column(Float, nullable=False, default=0)
+    pay_rate_l2 = Column(Float, nullable=False, default=0)
+    bill_rate_l2 = Column(Float, nullable=False, default=0)
+    markup_l2 = Column(Float, nullable=False, default=0)
+    pay_rate_l3 = Column(Float, nullable=False, default=0)
+    bill_rate_l3 = Column(Float, nullable=False, default=0)
+    markup_l3 = Column(Float, nullable=False, default=0)
+    
+    # Legacy columns kept to satisfy NOT NULL constraints in existing schema
+    pay_rate = Column(Float, default=0)
+    bill_rate = Column(Float, default=0)
+    markup = Column(Float, default=0)
+    
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    changed_by = Column(Integer, ForeignKey("user.id"), nullable=True)
+
+    preset_rate = relationship("ClientPresetRate", back_populates="history")
+    admin_user = relationship("User")
 
 
 class ClientPositionCert(Base):
@@ -231,6 +345,7 @@ class Shift(Base):
     id = Column(Integer, primary_key=True)
     client_id = Column(Integer, ForeignKey("client_company.id"), nullable=False)
     location_id = Column(Integer, ForeignKey("location.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("event.id"), nullable=True)
     position_id = Column(Integer, ForeignKey("position.id"), nullable=False)
     shift_date = Column(Date, nullable=False)
     start_time = Column(String(5), nullable=False)  # HH:MM
@@ -248,6 +363,7 @@ class Shift(Base):
 
     company = relationship("ClientCompany", back_populates="shifts")
     location = relationship("Location")
+    event = relationship("Event", back_populates="shifts")
     position = relationship("Position")
     assignments = relationship(
         "Assignment", back_populates="shift", cascade="all, delete-orphan"
@@ -303,8 +419,17 @@ class Timesheet(Base):
     status = Column(String, default="pending")  # pending | submitted | approved
     submitted_at = Column(DateTime)
     approved_at = Column(DateTime)
+    approved_by = Column(Integer, ForeignKey("user.id"))
+    deleted_at = Column(DateTime)
+    deleted_by = Column(Integer, ForeignKey("user.id"))
 
     assignment = relationship("Assignment", back_populates="timesheet")
+    approved_by_user = relationship("User", foreign_keys=[approved_by])
+    deleted_by_user = relationship("User", foreign_keys=[deleted_by])
+    events = relationship(
+        "TimesheetEvent", back_populates="timesheet",
+        order_by="TimesheetEvent.occurred_at", cascade="all, delete-orphan"
+    )
 
     @property
     def employee_break_minutes(self):
@@ -337,6 +462,20 @@ class Timesheet(Base):
     @property
     def hours(self):
         return self.billing_hours
+
+
+class TimesheetEvent(Base):
+    __tablename__ = "timesheet_event"
+    id = Column(Integer, primary_key=True)
+    timesheet_id = Column(Integer, ForeignKey("timesheet.id"), nullable=False)
+    event_type = Column(String, nullable=False)
+    occurred_at = Column(DateTime, default=datetime.utcnow)
+    actor_id = Column(Integer, ForeignKey("user.id"))
+    actor_role = Column(String)  # employee | client | admin | system
+    notes = Column(Text)
+
+    timesheet = relationship("Timesheet", back_populates="events")
+    actor = relationship("User", foreign_keys=[actor_id])
 
 
 class Message(Base):

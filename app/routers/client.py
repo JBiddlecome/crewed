@@ -15,7 +15,7 @@ from ..helpers import (
     compute_bill_rate,
     details_map,
     effective_markup,
-    location_day_for,
+    log_timesheet_event,
     min_wage_for_state,
     month_name,
     month_weeks,
@@ -240,7 +240,12 @@ def positions(
     db: Session = Depends(get_db),
 ):
     company = user.company
-    have = {cp.position_id for cp in company.positions}
+    if not company:
+        flash(request, "Your account isn't linked to a company yet.", "warning")
+        return RedirectResponse("/client", status_code=303)
+    # Filter out any ClientPositions whose Position was deleted from the catalog
+    company_positions = [cp for cp in company.positions if cp.position is not None]
+    have = {cp.position_id for cp in company_positions}
     available = (
         db.query(models.Position)
         .filter(~models.Position.id.in_(have) if have else True)
@@ -260,12 +265,14 @@ def positions(
             request,
             user,
             db,
+            company_positions=company_positions,
             available=available,
             certifications=certifications,
             markup=markup,
             location_wages=location_wages,
             floor=floor,
             compute_bill_rate=compute_bill_rate,
+            preset_rates_map={pr.position_id: pr for pr in company.preset_rates},
         ),
     )
 
@@ -274,22 +281,31 @@ def positions(
 def add_position(
     request: Request,
     position_id: int = Form(...),
-    pay_rate: float = Form(...),
+    pay_rate: float = Form(0.0),
     requirements: str = Form(""),
     cert_ids: list[int] = Form([]),
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
     company = user.company
-    wages = [min_wage_for_state(db, loc.state) for loc in company.locations]
-    lowest = min(wages) if wages else 7.25
-    if pay_rate < lowest:
-        flash(
-            request,
-            f"Pay rate must be at least ${lowest:.2f}/hr (the minimum wage across your locations).",
-            "error",
-        )
-        return RedirectResponse("/client/positions", status_code=303)
+    
+    if company.rate_setting == 'preset_rates':
+        preset = db.query(models.ClientPresetRate).filter_by(client_id=company.id, position_id=position_id).first()
+        if preset:
+            pay_rate = preset.pay_rate_l1
+        else:
+            wages = [min_wage_for_state(db, loc.state) for loc in company.locations]
+            pay_rate = min(wages) if wages else 7.25
+    else:
+        wages = [min_wage_for_state(db, loc.state) for loc in company.locations]
+        lowest = min(wages) if wages else 7.25
+        if pay_rate < lowest:
+            flash(
+                request,
+                f"Pay rate must be at least ${lowest:.2f}/hr (the minimum wage across your locations).",
+                "error",
+            )
+            return RedirectResponse("/client/positions", status_code=303)
     if db.query(models.ClientPosition).filter_by(
         client_id=company.id, position_id=position_id
     ).first():
@@ -325,7 +341,9 @@ def update_position(
         return RedirectResponse("/client/positions", status_code=303)
     wages = [min_wage_for_state(db, loc.state) for loc in user.company.locations]
     lowest = min(wages) if wages else 7.25
-    if pay_rate < lowest:
+    if user.company.rate_setting == 'preset_rates':
+        flash(request, "Pay rates are preset by the admin and cannot be updated here.", "error")
+    elif pay_rate < lowest:
         flash(request, f"Pay rate must be at least ${lowest:.2f}/hr.", "error")
     else:
         cp.pay_rate = round(pay_rate, 2)
@@ -371,20 +389,20 @@ def shifts(
 
     weeks = month_weeks(year, month)
     grid_start, grid_end = weeks[0][0], weeks[-1][-1]
-    month_shifts = (
-        db.query(models.Shift)
+    month_events = (
+        db.query(models.Event)
         .filter(
-            models.Shift.client_id == user.client_id,
-            models.Shift.shift_date >= grid_start,
-            models.Shift.shift_date <= grid_end,
+            models.Event.client_id == user.client_id,
+            models.Event.event_date >= grid_start,
+            models.Event.event_date <= grid_end,
         )
-        .order_by(models.Shift.start_time)
+        .order_by(models.Event.event_date)
         .all()
     )
-    # {date: {location: [shifts]}}
-    by_day = defaultdict(lambda: defaultdict(list))
-    for s in month_shifts:
-        by_day[s.shift_date][s.location].append(s)
+    # {date: [events]}
+    by_day = defaultdict(list)
+    for e in month_events:
+        by_day[e.event_date].append(e)
 
     return templates.TemplateResponse(
         request,
@@ -405,116 +423,120 @@ def shifts(
     )
 
 
-# ---------- Location-day view (all shifts at a location on a date) ----------
+# ---------- Event view (all shifts within one event) ----------
 
 @router.get("/days/{location_id}/{day}")
-def day_view(
+def day_redirect(
     location_id: int,
     day: str,
     request: Request,
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
-    loc = db.get(models.Location, location_id)
+    """Backward-compat redirect — old bookmarks still work."""
     try:
         d = date.fromisoformat(day)
     except ValueError:
-        loc = None
-    if not loc or loc.client_id != user.client_id:
+        return RedirectResponse("/client/shifts", status_code=303)
+    event = (
+        db.query(models.Event)
+        .filter_by(client_id=user.client_id, location_id=location_id, event_date=d)
+        .first()
+    )
+    if event:
+        return RedirectResponse(f"/client/events/{event.id}", status_code=301)
+    flash(request, "Event not found.", "error")
+    return RedirectResponse("/client/shifts", status_code=303)
+
+
+@router.get("/events/{event_id}")
+def event_view(
+    event_id: int,
+    request: Request,
+    user: models.User = Depends(require("client")),
+    db: Session = Depends(get_db),
+):
+    event = db.get(models.Event, event_id)
+    if not event or event.client_id != user.client_id:
         flash(request, "Not found.", "error")
         return RedirectResponse("/client/shifts", status_code=303)
-
-    day_shifts = (
-        db.query(models.Shift)
-        .filter_by(client_id=user.client_id, location_id=loc.id, shift_date=d)
-        .order_by(models.Shift.start_time)
-        .all()
-    )
-    day_row = location_day_for(db, loc.id, d)
-    # Prefill the day-details form: day override if set, else location defaults
-    day_details = {
-        f: (getattr(day_row, f, None) if day_row else None) or getattr(loc, f, None) or ""
-        for f in DETAIL_FIELDS
-    }
+    day_shifts = sorted(event.shifts, key=lambda s: s.start_time)
     confirmed_crew = sorted(
-        {
-            a.employee
-            for s in day_shifts
-            for a in s.assignments
-            if a.status == "confirmed"
-        },
+        {a.employee for s in day_shifts for a in s.assignments if a.status == "confirmed"},
         key=lambda u: u.first_name,
     )
     return templates.TemplateResponse(
         request,
-        "client/day.html",
+        "client/event.html",
         ctx(
             request,
             user,
             db,
-            loc=loc,
-            d=d,
+            event=event,
             day_shifts=day_shifts,
-            day_details=day_details,
-            has_day_override=day_row is not None,
-            details=details_map(db, day_shifts),
             confirmed_crew=confirmed_crew,
+            details=details_map(db, day_shifts),
         ),
     )
 
 
-@router.post("/days/{location_id}/{day}/details")
-def save_day_details(
-    location_id: int,
-    day: str,
+@router.post("/events/{event_id}/details")
+def save_event_details(
+    event_id: int,
     request: Request,
+    name: str = Form(""),
+    address1: str = Form(""),
+    address2: str = Form(""),
+    city: str = Form(""),
+    state: str = Form(""),
+    zip: str = Form(""),
     parking: str = Form(""),
     check_in_location: str = Form(""),
     check_in_contact: str = Form(""),
+    notes: str = Form(""),
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
-    loc = db.get(models.Location, location_id)
-    d = date.fromisoformat(day)
-    if not loc or loc.client_id != user.client_id:
+    event = db.get(models.Event, event_id)
+    if not event or event.client_id != user.client_id:
         flash(request, "Not found.", "error")
         return RedirectResponse("/client/shifts", status_code=303)
-    row = location_day_for(db, loc.id, d)
-    if not row:
-        row = models.LocationDay(location_id=loc.id, date=d)
-        db.add(row)
-    row.parking = parking.strip() or None
-    row.check_in_location = check_in_location.strip() or None
-    row.check_in_contact = check_in_contact.strip() or None
+    event.name = name.strip() or event.name
+    event.address1 = address1.strip() or event.address1
+    event.address2 = address2.strip()
+    event.city = city.strip() or event.city
+    event.state = state or event.state
+    event.zip = zip.strip() or event.zip
+    event.parking = parking.strip() or None
+    event.check_in_location = check_in_location.strip() or None
+    event.check_in_contact = check_in_contact.strip() or None
+    event.notes = notes.strip() or None
     db.commit()
-    flash(request, f"Details saved for {loc.name} — they apply to every shift on this date.")
-    return RedirectResponse(f"/client/days/{loc.id}/{day}", status_code=303)
+    flash(request, f"Event details saved for {event.name} on {event.event_date.strftime('%b %d')}.")
+    return RedirectResponse(f"/client/events/{event.id}", status_code=303)
 
 
-@router.post("/days/{location_id}/{day}/message")
-def message_day_crew(
-    location_id: int,
-    day: str,
+@router.post("/events/{event_id}/message")
+def message_event_crew(
+    event_id: int,
     request: Request,
     body: str = Form(...),
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
-    loc = db.get(models.Location, location_id)
-    d = date.fromisoformat(day)
-    if not loc or loc.client_id != user.client_id:
+    event = db.get(models.Event, event_id)
+    if not event or event.client_id != user.client_id:
         flash(request, "Not found.", "error")
         return RedirectResponse("/client/shifts", status_code=303)
     body = body.strip()
     if not body:
         flash(request, "Message can't be empty.", "error")
-        return RedirectResponse(f"/client/days/{loc.id}/{day}", status_code=303)
+        return RedirectResponse(f"/client/events/{event.id}", status_code=303)
     assignments = (
         db.query(models.Assignment)
         .join(models.Shift)
         .filter(
-            models.Shift.location_id == loc.id,
-            models.Shift.shift_date == d,
+            models.Shift.event_id == event.id,
             models.Assignment.status == "confirmed",
         )
         .all()
@@ -526,8 +548,8 @@ def message_day_crew(
                 sender_id=user.id,
                 recipient_id=rid,
                 body=body,
-                location_id=loc.id,
-                context_date=d,
+                location_id=event.location_id,
+                context_date=event.event_date,
             )
         )
     db.commit()
@@ -535,7 +557,7 @@ def message_day_crew(
         flash(request, f"Message sent to {len(recipients)} crew member{'s' if len(recipients) != 1 else ''}.")
     else:
         flash(request, "No confirmed crew on this date yet — nothing sent.", "warning")
-    return RedirectResponse(f"/client/days/{loc.id}/{day}", status_code=303)
+    return RedirectResponse(f"/client/events/{event.id}", status_code=303)
 
 
 @router.get("/shifts/new")
@@ -566,6 +588,8 @@ def new_shift_form(
             markup=effective_markup(db, company),
             today=date.today().isoformat(),
             not_approved=False,
+            preset_rates_map={pr.position_id: pr for pr in company.preset_rates},
+            compute_bill_rate=compute_bill_rate,
         ),
     )
 
@@ -603,26 +627,92 @@ def create_shift(
         flash(request, "Shift date can't be in the past.", "error")
         return RedirectResponse("/client/shifts/new", status_code=303)
 
-    wage = min_wage_for_state(db, location.state)
-    if pay_rate < wage:
-        flash(
-            request,
-            f"Pay rate must be at least ${wage:.2f}/hr — the minimum wage in {location.state}.",
-            "error",
-        )
-        return RedirectResponse("/client/shifts/new", status_code=303)
+    if company.rate_setting == 'preset_rates':
+        preset = db.query(models.ClientPresetRate).filter_by(client_id=company.id, position_id=cp.position_id).first()
+        if preset:
+            if required_level == 1:
+                pay_rate = preset.pay_rate_l1
+                bill_rate = preset.bill_rate_l1
+            elif required_level == 2:
+                pay_rate = preset.pay_rate_l2
+                bill_rate = preset.bill_rate_l2
+            else:
+                pay_rate = preset.pay_rate_l3
+                bill_rate = preset.bill_rate_l3
+        else:
+            if required_level == 1:
+                pay_rate = cp.position.default_pay_rate_l1
+                bill_rate = cp.position.default_bill_rate_l1
+            elif required_level == 2:
+                pay_rate = cp.position.default_pay_rate_l2
+                bill_rate = cp.position.default_bill_rate_l2
+            else:
+                pay_rate = cp.position.default_pay_rate_l3
+                bill_rate = cp.position.default_bill_rate_l3
+            
+            preset = models.ClientPresetRate(
+                client_id=company.id,
+                position_id=cp.position_id,
+                pay_rate_l1=cp.position.default_pay_rate_l1, bill_rate_l1=cp.position.default_bill_rate_l1, markup_l1=cp.position.default_markup_l1,
+                pay_rate_l2=cp.position.default_pay_rate_l2, bill_rate_l2=cp.position.default_bill_rate_l2, markup_l2=cp.position.default_markup_l2,
+                pay_rate_l3=cp.position.default_pay_rate_l3, bill_rate_l3=cp.position.default_bill_rate_l3, markup_l3=cp.position.default_markup_l3
+            )
+            db.add(preset)
+            db.flush()
+            db.add(models.ClientPresetRateHistory(
+                preset_rate=preset,
+                pay_rate_l1=cp.position.default_pay_rate_l1, bill_rate_l1=cp.position.default_bill_rate_l1, markup_l1=cp.position.default_markup_l1,
+                pay_rate_l2=cp.position.default_pay_rate_l2, bill_rate_l2=cp.position.default_bill_rate_l2, markup_l2=cp.position.default_markup_l2,
+                pay_rate_l3=cp.position.default_pay_rate_l3, bill_rate_l3=cp.position.default_bill_rate_l3, markup_l3=cp.position.default_markup_l3,
+                changed_by=None
+            ))
+    else:
+        wage = min_wage_for_state(db, location.state)
+        if pay_rate < wage:
+            flash(
+                request,
+                f"Pay rate must be at least ${wage:.2f}/hr — the minimum wage in {location.state}.",
+                "error",
+            )
+            return RedirectResponse("/client/shifts/new", status_code=303)
+        markup = effective_markup(db, company)
+        bill_rate = compute_bill_rate(pay_rate, markup)
 
-    markup = effective_markup(db, company)
+    # Find or create the event folder for this location + date
+    event = (
+        db.query(models.Event)
+        .filter_by(client_id=company.id, location_id=location.id, event_date=parsed_date)
+        .first()
+    )
+    if not event:
+        event = models.Event(
+            client_id=company.id,
+            location_id=location.id,
+            event_date=parsed_date,
+            name=location.name,
+            address1=location.address1,
+            address2=location.address2 or "",
+            city=location.city,
+            state=location.state,
+            zip=location.zip,
+            parking=location.parking,
+            check_in_location=location.check_in_location,
+            check_in_contact=location.check_in_contact,
+        )
+        db.add(event)
+        db.flush()
+
     shift = models.Shift(
         client_id=company.id,
         location_id=location.id,
+        event_id=event.id,
         position_id=cp.position_id,
         shift_date=parsed_date,
         start_time=start_time,
         end_time=end_time,
         headcount=max(headcount, 1),
         pay_rate=round(pay_rate, 2),
-        bill_rate=compute_bill_rate(pay_rate, markup),
+        bill_rate=round(bill_rate, 2),
         notes=notes.strip(),
         required_level=max(1, min(3, required_level)),
         status="open",
@@ -630,7 +720,7 @@ def create_shift(
     db.add(shift)
     db.commit()
     flash(request, f"Shift posted — {cp.position.name} on {parsed_date.strftime('%b %d')}. Qualified crew can now apply.")
-    return RedirectResponse(f"/client/days/{location.id}/{parsed_date.isoformat()}", status_code=303)
+    return RedirectResponse(f"/client/events/{event.id}", status_code=303)
 
 
 @router.get("/shifts/{shift_id}")
@@ -758,7 +848,13 @@ def confirm_assignment(
     a.status = "confirmed"
     a.confirmed_at = datetime.utcnow()
     if not a.timesheet:
-        db.add(models.Timesheet(assignment_id=a.id))
+        new_ts = models.Timesheet(assignment_id=a.id)
+        db.add(new_ts)
+        db.flush()
+        log_timesheet_event(
+            db, new_ts.id, "created", user.id, "client",
+            f"Timesheet created — {a.employee.name} confirmed for shift on {a.shift.shift_date}",
+        )
     refresh_shift_status(db, a.shift)
     db.commit()
     flash(request, f"{a.employee.name} confirmed for the shift.")
@@ -795,7 +891,7 @@ def timesheets(
         db.query(models.Timesheet)
         .join(models.Assignment)
         .join(models.Shift)
-        .filter(models.Shift.client_id == user.client_id)
+        .filter(models.Shift.client_id == user.client_id, models.Timesheet.deleted_at == None)
         .order_by(models.Timesheet.status.desc(), models.Timesheet.id.desc())
         .all()
     )
@@ -859,11 +955,27 @@ def approve_timesheet(
                     t.billing_break_minutes = 0
             t.is_disputed = True
             t.dispute_reason = dispute_reason.strip() or None
-        
+
         t.status = "approved"
         t.approved_at = datetime.utcnow()
+        t.approved_by = user.id
+
+        if edited:
+            reason_note = f" Reason: {dispute_reason.strip()}" if dispute_reason.strip() else ""
+            log_timesheet_event(
+                db, t.id, "client_adjusted", user.id, "client",
+                f"Approved with billing adjustment: {start_time}–{end_time}"
+                + (f" (meal {meal_start_time}–{meal_end_time})" if not no_break and meal_start_time else " (no break)")
+                + f" · {t.billing_hours:.2f} hrs billed." + reason_note,
+            )
+        else:
+            log_timesheet_event(
+                db, t.id, "client_approved", user.id, "client",
+                f"Approved as submitted · {t.employee_hours:.2f} hrs.",
+            )
+
         db.commit()
-        
+
         msg = f"Timesheet approved — {t.hours:.2f} hours for {t.assignment.employee.name}."
         if edited:
             msg += " (Hours adjusted for billing)"
@@ -921,6 +1033,13 @@ def edit_timesheet(
                 t.billing_break_minutes = 0
         t.is_disputed = True
         t.dispute_reason = dispute_reason.strip() or None
+        reason_note = f" Reason: {dispute_reason.strip()}" if dispute_reason.strip() else ""
+        log_timesheet_event(
+            db, t.id, "client_billing_edit", user.id, "client",
+            f"Billing updated to {start_time}–{end_time}"
+            + (f" (meal {meal_start_time}–{meal_end_time})" if not no_break and meal_start_time else " (no break)")
+            + f" · {t.billing_hours:.2f} hrs." + reason_note,
+        )
     else:
         t.billing_start_time = None
         t.billing_end_time = None
@@ -929,7 +1048,11 @@ def edit_timesheet(
         t.billing_meal_end_time = None
         t.is_disputed = False
         t.dispute_reason = None
-        
+        log_timesheet_event(
+            db, t.id, "client_billing_edit", user.id, "client",
+            "Billing reset to match claimed times.",
+        )
+
     db.commit()
     flash(request, f"Timesheet updated — {t.billing_hours:.2f} hours billed.")
     return RedirectResponse("/client/timesheets", status_code=303)

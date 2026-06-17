@@ -57,15 +57,162 @@
 
 <div class="grid grid-2">
   <div class="card">
-    <h2>Billing markup</h2>
-    <p class="card-note">Bill rate = pay rate + markup. Global default is {{ global_markup }}%.</p>
-    <form class="inline-form" method="post" action="/admin/clients/{{ company.id }}/markup">
-      <input type="number" name="markup_override" step="0.5" min="0" placeholder="{{ global_markup }}"
-             value="{{ company.markup_override if company.markup_override is not none else '' }}">
-      <span style="color:var(--muted)">%</span>
-      <button class="btn btn-sm" type="submit">Save</button>
+    <h2>Billing &amp; Rate Settings</h2>
+    <form class="inline-form" method="post" action="/admin/clients/{{ company.id }}/rate-setting" style="margin-bottom: 16px;">
+      <select name="rate_setting" onchange="this.form.submit()">
+        <option value="client_controlled" {% if company.rate_setting != 'preset_rates' %}selected{% endif %}>Client Controlled Rates</option>
+        <option value="preset_rates" {% if company.rate_setting == 'preset_rates' %}selected{% endif %}>Preset Position Rates</option>
+      </select>
     </form>
-    <p class="card-note" style="margin-top:8px">Leave blank to use the global markup. Currently effective: <strong>{{ markup|round(1) }}%</strong></p>
+
+    {% if company.rate_setting != 'preset_rates' %}
+    <div style="padding-top:16px;border-top:1px solid var(--line)">
+      <h3>Billing markup</h3>
+      <p class="card-note">Bill rate = pay rate + markup. Global default is {{ global_markup }}%.</p>
+      <form class="inline-form" method="post" action="/admin/clients/{{ company.id }}/markup">
+        <input type="number" name="markup_override" step="0.5" min="0" placeholder="{{ global_markup }}"
+               value="{{ company.markup_override if company.markup_override is not none else '' }}">
+        <span style="color:var(--muted)">%</span>
+        <button class="btn btn-sm" type="submit">Save</button>
+      </form>
+      <p class="card-note" style="margin-top:8px">Leave blank to use the global markup. Currently effective: <strong>{{ markup|round(1) }}%</strong></p>
+    </div>
+    {% else %}
+    <div style="padding-top:16px;border-top:1px solid var(--line)">
+      <p class="card-note" style="margin-bottom:12px;">Client selects positions but rates are locked to these preset values. Bill rate and markup are continuously synced.</p>
+      <div style="background:var(--bg-sub); padding:16px; border-radius:6px; margin-bottom:16px;">
+        <h4 style="margin-top:0;margin-bottom:8px;">Bulk Upload Rates</h4>
+        <p class="card-note" style="margin-bottom:12px;">Upload an Excel file to bulk update preset rates for all positions this client uses.</p>
+        <div style="margin-bottom:12px;">
+          <a href="/admin/positions/template" class="btn btn-sm btn-soft">Download Blank Template</a>
+        </div>
+        <form method="post" action="/admin/clients/{{ company.id }}/upload-rates" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:flex-end;">
+          <div class="field" style="flex:1; margin-bottom:0;">
+            <label for="client_excel_file">Excel File (.xlsx)</label>
+            <input type="file" id="client_excel_file" name="file" accept=".xlsx" required style="padding:4px;">
+          </div>
+          <button class="btn btn-sm" type="submit">Upload &amp; Update</button>
+        </form>
+      </div>
+      <div style="max-height: 400px; overflow-y: auto; padding-right: 12px;">
+        {% for p in positions %}
+        {% set pr = preset_rates_map.get(p.id) %}
+        <form method="post" action="/admin/clients/{{ company.id }}/preset-rates" style="border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:12px; background:var(--bg-card);">
+          <input type="hidden" name="position_id" value="{{ p.id }}">
+          <div style="font-weight:600; margin-bottom:8px;">{{ p.name }}</div>
+          
+          <!-- Level 1 -->
+          <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 1</div>
+          <div class="form-row" style="gap:8px;margin-bottom:12px;">
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Pay Rate ($)</label>
+              <input type="number" name="pay_rate_l1" id="pr_pay_1_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.pay_rate_l1 if pr else '%.2f' % p.default_pay_rate_l1 }}" required oninput="updateBillRate('1_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Bill Rate ($)</label>
+              <input type="number" name="bill_rate_l1" id="pr_bill_1_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.bill_rate_l1 if pr else '%.2f' % p.default_bill_rate_l1 }}" required oninput="updateMarkup('1_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Markup (%)</label>
+              <input type="number" name="markup_l1" id="pr_markup_1_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.markup_l1 if pr else '%.2f' % p.default_markup_l1 }}" required oninput="updateBillRate('1_{{ p.id }}')">
+            </div>
+          </div>
+          
+          <!-- Level 2 -->
+          <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 2</div>
+          <div class="form-row" style="gap:8px;margin-bottom:12px;">
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Pay Rate ($)</label>
+              <input type="number" name="pay_rate_l2" id="pr_pay_2_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.pay_rate_l2 if pr else '%.2f' % p.default_pay_rate_l2 }}" required oninput="updateBillRate('2_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Bill Rate ($)</label>
+              <input type="number" name="bill_rate_l2" id="pr_bill_2_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.bill_rate_l2 if pr else '%.2f' % p.default_bill_rate_l2 }}" required oninput="updateMarkup('2_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Markup (%)</label>
+              <input type="number" name="markup_l2" id="pr_markup_2_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.markup_l2 if pr else '%.2f' % p.default_markup_l2 }}" required oninput="updateBillRate('2_{{ p.id }}')">
+            </div>
+          </div>
+          
+          <!-- Level 3 -->
+          <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 3</div>
+          <div class="form-row" style="gap:8px;">
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Pay Rate ($)</label>
+              <input type="number" name="pay_rate_l3" id="pr_pay_3_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.pay_rate_l3 if pr else '%.2f' % p.default_pay_rate_l3 }}" required oninput="updateBillRate('3_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Bill Rate ($)</label>
+              <input type="number" name="bill_rate_l3" id="pr_bill_3_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.bill_rate_l3 if pr else '%.2f' % p.default_bill_rate_l3 }}" required oninput="updateMarkup('3_{{ p.id }}')">
+            </div>
+            <div class="field" style="flex:1;">
+              <label style="font-size:0.7rem;text-transform:uppercase;color:var(--muted);font-weight:700;">Markup (%)</label>
+              <input type="number" name="markup_l3" id="pr_markup_3_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.markup_l3 if pr else '%.2f' % p.default_markup_l3 }}" required oninput="updateBillRate('3_{{ p.id }}')">
+            </div>
+          </div>
+          <div style="text-align:right; margin-top:8px;">
+            <button type="submit" class="btn btn-sm">Save {{ p.name }}</button>
+          </div>
+        </form>
+        {% endfor %}
+      </div>
+      <script>
+        function updateMarkup(posId) {
+          const payInput = document.getElementById('pr_pay_' + posId);
+          const billInput = document.getElementById('pr_bill_' + posId);
+          const markupInput = document.getElementById('pr_markup_' + posId);
+          const pay = parseFloat(payInput.value) || 0;
+          const bill = parseFloat(billInput.value) || 0;
+          if (pay > 0) {
+            const markup = ((bill - pay) / pay) * 100;
+            markupInput.value = markup.toFixed(2);
+          }
+        }
+        function updateBillRate(posId) {
+          const payInput = document.getElementById('pr_pay_' + posId);
+          const billInput = document.getElementById('pr_bill_' + posId);
+          const markupInput = document.getElementById('pr_markup_' + posId);
+          const pay = parseFloat(payInput.value) || 0;
+          const markup = parseFloat(markupInput.value) || 0;
+          if (pay > 0) {
+            const bill = pay * (1 + (markup / 100));
+            billInput.value = bill.toFixed(2);
+          }
+        }
+      </script>
+      
+      {% if rate_history %}
+      <div style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px;">
+        <h3>Rate Modification History</h3>
+        <table class="table" style="font-size:0.85rem;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Position</th>
+              <th>L1 Rates (Pay / Bill / Markup)</th>
+              <th>L2 Rates</th>
+              <th>L3 Rates</th>
+              <th>Modified By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rh in rate_history %}
+            <tr>
+              <td>{{ rh.changed_at|dt }}</td>
+              <td>{{ rh.preset_rate.position.name }}</td>
+              <td>{{ rh.pay_rate_l1|money }} / {{ rh.bill_rate_l1|money }} / {{ rh.markup_l1 }}%</td>
+              <td>{{ rh.pay_rate_l2|money }} / {{ rh.bill_rate_l2|money }} / {{ rh.markup_l2 }}%</td>
+              <td>{{ rh.pay_rate_l3|money }} / {{ rh.bill_rate_l3|money }} / {{ rh.markup_l3 }}%</td>
+              <td>{{ rh.admin_user.name if rh.admin_user else 'System' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
   <div class="card">

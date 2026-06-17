@@ -133,23 +133,13 @@ def client_position_for(db: Session, shift: models.Shift):
 DETAIL_FIELDS = ("parking", "check_in_location", "check_in_contact")
 
 
-def location_day_for(db: Session, location_id: int, day: date):
-    return (
-        db.query(models.LocationDay)
-        .filter_by(location_id=location_id, date=day)
-        .first()
-    )
-
-
 def resolved_details(db: Session, shift: models.Shift) -> dict:
-    """Effective parking/check-in details: shift override → that date's
-    location-day override → location defaults."""
-    day = location_day_for(db, shift.location_id, shift.shift_date)
+    """Effective parking/check-in details: shift override → event → location defaults."""
     out = {}
     for field in DETAIL_FIELDS:
         out[field] = (
             getattr(shift, field, None)
-            or (getattr(day, field, None) if day else None)
+            or (getattr(shift.event, field, None) if shift.event else None)
             or getattr(shift.location, field, None)
         )
     return out
@@ -211,7 +201,83 @@ def get_past_due_assignment(db: Session, employee_id: int):
             models.Assignment.employee_id == employee_id,
             models.Shift.shift_date < today,
             models.Timesheet.status == "pending",
+            models.Timesheet.deleted_at == None,
         )
         .order_by(models.Shift.shift_date.asc())
         .first()
     )
+
+
+def log_timesheet_event(
+    db: Session,
+    timesheet_id: int,
+    event_type: str,
+    actor_id,
+    actor_role: str,
+    notes: str = None,
+):
+    ev = models.TimesheetEvent(
+        timesheet_id=timesheet_id,
+        event_type=event_type,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        notes=notes,
+    )
+    db.add(ev)
+
+
+def process_rates_excel(file_bytes: bytes) -> list:
+    import io
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+    ws = wb.active
+    
+    headers = [str(cell.value).strip().lower() if cell.value else "" for cell in ws[1]]
+    
+    results = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not any(row):
+            continue
+            
+        row_dict = dict(zip(headers, row))
+        pos_name = row_dict.get('position')
+        if not pos_name:
+            continue
+            
+        pos_name = str(pos_name).strip()
+        
+        parsed = {'position': pos_name}
+        for level in (1, 2, 3):
+            pay = row_dict.get(f'level_{level}_pay')
+            bill = row_dict.get(f'level_{level}_bill')
+            markup = row_dict.get(f'level_{level}_markup')
+            
+            try:
+                pay = float(pay) if pay is not None else 0.0
+            except (ValueError, TypeError):
+                pay = 0.0
+            try:
+                bill = float(bill) if bill is not None else 0.0
+            except (ValueError, TypeError):
+                bill = 0.0
+            try:
+                markup = float(markup) if markup is not None else 0.0
+            except (ValueError, TypeError):
+                markup = 0.0
+                
+            if pay > 0:
+                if bill > 0 and not markup:
+                    markup = ((bill - pay) / pay) * 100
+                elif markup > 0 and not bill:
+                    bill = pay * (1 + (markup / 100))
+                elif not bill and not markup:
+                    bill = pay
+                    markup = 0.0
+                    
+            parsed[f'l{level}'] = {
+                'pay': round(pay, 2),
+                'bill': round(bill, 2),
+                'markup': round(markup, 2)
+            }
+        results.append(parsed)
+    return results

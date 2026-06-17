@@ -30,12 +30,12 @@
       <span class="v">{% for c in cp.certs %}<span class="chip">{{ c.certification.name }}</span>{% endfor %}
       {% if cp.requirements %} {{ cp.requirements }}{% endif %}</span></div>
     {% endif %}
-    <p class="card-note" style="margin:10px 0 0">Details come from this shift's overrides, then the <a href="/client/days/{{ shift.location_id }}/{{ shift.shift_date.isoformat() }}">date's details</a>, then the location defaults.</p>
+    <p class="card-note" style="margin:10px 0 0">Details come from this shift's overrides, then the <a href="/client/events/{{ shift.event_id }}">event details</a>, then the location defaults.</p>
   </div>
 
   <div class="card">
     <h2>Override details for this shift only</h2>
-    <p class="card-note">Leave a field blank to inherit from the date/location.</p>
+    <p class="card-note">Leave a field blank to inherit from the event.</p>
     <form method="post" action="/client/shifts/{{ shift.id }}/details">
       <div class="field">
         <label for="parking">Parking</label>
@@ -64,12 +64,17 @@
   <h2>Crew</h2>
   {% if applicants %}
   <table class="table">
-    <thead><tr><th>Name</th><th>Contact</th><th>Qualified</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Qualified</th><th>Status</th><th class="actions">Actions</th></tr></thead>
     <tbody>
       {% for a, q in applicants %}
       <tr>
-        <td class="strong">{{ a.employee.name }}</td>
-        <td>{{ a.employee.phone or a.employee.email }}</td>
+        <td class="strong" style="display:flex;align-items:center;gap:8px">
+          {% if a.employee.profile_picture and a.employee.profile_picture_approved %}
+          <img src="/file/profile-pic/{{ a.employee.profile_picture }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid var(--line);flex-shrink:0" alt="">
+          {% endif %}
+          {{ a.employee.name }}
+        </td>
+        <td>{{ a.employee.email }}</td>
         <td>
           {% if q[0] %}<span class="badge badge-approved">Yes</span>
           {% else %}{% for r in q[1] %}<span class="chip chip-warn">{{ r }}</span>{% endfor %}{% endif %}
