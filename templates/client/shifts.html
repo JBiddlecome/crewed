@@ -27,13 +27,11 @@
         <td class="{{ 'other' if d.month != cal_month }} {{ 'today-cell' if d == today }}">
           <span class="daynum {{ 'today-pill' if d == today }}">{{ d.day }}</span>
           {% if by_day.get(d) %}
-            {% for loc, ss in by_day[d].items() %}
-              {% set conf = ss|sum(attribute='confirmed_count') %}
-              {% set need = ss|sum(attribute='headcount') %}
-              {% set live = ss|rejectattr('status', 'equalto', 'cancelled')|list %}
-              <a class="loc-chip {{ 'needs' if conf < need and live }}" href="/client/days/{{ loc.id }}/{{ d.isoformat() }}">
-                {{ loc.name }}
-                <span class="sub">{{ ss|length }} shift{{ 's' if ss|length != 1 }} · {{ conf }}/{{ need }} staffed</span>
+            {% for event in by_day[d] %}
+              {% set live = event.live_shifts %}
+              <a class="loc-chip {{ 'needs' if event.confirmed_count < event.headcount and live }}" href="/client/events/{{ event.id }}">
+                {{ event.name }}
+                <span class="sub">{{ live|length }} shift{{ 's' if live|length != 1 }} · {{ event.confirmed_count }}/{{ event.headcount }} staffed</span>
               </a>
             {% endfor %}
           {% endif %}

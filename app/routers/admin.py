@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, Form, Request, UploadFile, File
+from fastapi.responses import RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -11,9 +11,11 @@ from ..helpers import (
     STATE_NAMES,
     effective_markup,
     get_setting,
+    log_timesheet_event,
     min_wage_for_state,
     remove_employee_from_future_shifts,
     set_setting,
+    process_rates_excel,
 )
 from ..templating import flash, templates
 
@@ -39,7 +41,7 @@ def dashboard(
         .filter(models.Shift.status == "open", models.Shift.shift_date >= today)
         .count(),
         "submitted_timesheets": db.query(models.Timesheet)
-        .filter_by(status="submitted")
+        .filter(models.Timesheet.status == "submitted", models.Timesheet.deleted_at == None)
         .count(),
     }
     recent_shifts = (
@@ -57,7 +59,7 @@ def dashboard(
     )
     disputed_timesheets = (
         db.query(models.Timesheet)
-        .filter_by(is_disputed=True)
+        .filter(models.Timesheet.is_disputed == True, models.Timesheet.deleted_at == None)
         .order_by(models.Timesheet.approved_at.desc())
         .limit(8)
         .all()
@@ -262,6 +264,13 @@ def client_detail(
             "blocklist": blocklist_entries,
             "employees": employees,
             "unlinked_users": unlinked_users,
+            "positions": db.query(models.Position).order_by(models.Position.name).all(),
+            "preset_rates_map": {pr.position_id: pr for pr in company.preset_rates},
+            "rate_history": db.query(models.ClientPresetRateHistory)
+                .join(models.ClientPresetRate)
+                .filter(models.ClientPresetRate.client_id == company.id)
+                .order_by(models.ClientPresetRateHistory.changed_at.desc())
+                .limit(50).all(),
         },
     )
 
@@ -294,6 +303,183 @@ def set_client_markup(
     db.commit()
     return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
 
+
+@router.post("/clients/{client_id}/rate-setting")
+def set_client_rate_setting(
+    client_id: int,
+    request: Request,
+    rate_setting: str = Form(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    
+    if rate_setting not in ("client_controlled", "preset_rates"):
+        flash(request, "Invalid rate setting.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+        
+    company.rate_setting = rate_setting
+    db.commit()
+    flash(request, f"{company.name} rate setting updated to {'Preset Position Rates' if rate_setting == 'preset_rates' else 'Client Controlled Rates'}.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/preset-rates")
+def set_client_preset_rates(
+    client_id: int,
+    request: Request,
+    position_id: int = Form(...),
+    pay_rate_l1: float = Form(0),
+    bill_rate_l1: float = Form(0),
+    markup_l1: float = Form(0),
+    pay_rate_l2: float = Form(0),
+    bill_rate_l2: float = Form(0),
+    markup_l2: float = Form(0),
+    pay_rate_l3: float = Form(0),
+    bill_rate_l3: float = Form(0),
+    markup_l3: float = Form(0),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+    
+    if pay_rate_l1 < 0 or bill_rate_l1 < 0 or markup_l1 < 0 or pay_rate_l2 < 0 or bill_rate_l2 < 0 or markup_l2 < 0 or pay_rate_l3 < 0 or bill_rate_l3 < 0 or markup_l3 < 0:
+        flash(request, "Rates must be non-negative.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+    preset_rate = db.query(models.ClientPresetRate).filter_by(client_id=company.id, position_id=position_id).first()
+    if preset_rate:
+        if (preset_rate.pay_rate_l1 != pay_rate_l1 or preset_rate.bill_rate_l1 != bill_rate_l1 or preset_rate.markup_l1 != markup_l1 or
+            preset_rate.pay_rate_l2 != pay_rate_l2 or preset_rate.bill_rate_l2 != bill_rate_l2 or preset_rate.markup_l2 != markup_l2 or
+            preset_rate.pay_rate_l3 != pay_rate_l3 or preset_rate.bill_rate_l3 != bill_rate_l3 or preset_rate.markup_l3 != markup_l3):
+            
+            preset_rate.pay_rate_l1 = pay_rate_l1
+            preset_rate.bill_rate_l1 = bill_rate_l1
+            preset_rate.markup_l1 = markup_l1
+            preset_rate.pay_rate_l2 = pay_rate_l2
+            preset_rate.bill_rate_l2 = bill_rate_l2
+            preset_rate.markup_l2 = markup_l2
+            preset_rate.pay_rate_l3 = pay_rate_l3
+            preset_rate.bill_rate_l3 = bill_rate_l3
+            preset_rate.markup_l3 = markup_l3
+            
+            db.add(models.ClientPresetRateHistory(
+                preset_rate=preset_rate,
+                pay_rate_l1=pay_rate_l1, bill_rate_l1=bill_rate_l1, markup_l1=markup_l1,
+                pay_rate_l2=pay_rate_l2, bill_rate_l2=bill_rate_l2, markup_l2=markup_l2,
+                pay_rate_l3=pay_rate_l3, bill_rate_l3=bill_rate_l3, markup_l3=markup_l3,
+                changed_by=user.id
+            ))
+    else:
+        preset_rate = models.ClientPresetRate(
+            client_id=company.id,
+            position_id=position_id,
+            pay_rate_l1=pay_rate_l1, bill_rate_l1=bill_rate_l1, markup_l1=markup_l1,
+            pay_rate_l2=pay_rate_l2, bill_rate_l2=bill_rate_l2, markup_l2=markup_l2,
+            pay_rate_l3=pay_rate_l3, bill_rate_l3=bill_rate_l3, markup_l3=markup_l3,
+        )
+        db.add(preset_rate)
+        db.flush()
+        db.add(models.ClientPresetRateHistory(
+            preset_rate=preset_rate,
+            pay_rate_l1=pay_rate_l1, bill_rate_l1=bill_rate_l1, markup_l1=markup_l1,
+            pay_rate_l2=pay_rate_l2, bill_rate_l2=bill_rate_l2, markup_l2=markup_l2,
+            pay_rate_l3=pay_rate_l3, bill_rate_l3=bill_rate_l3, markup_l3=markup_l3,
+            changed_by=user.id
+        ))
+    
+    db.commit()
+    flash(request, f"Preset rates updated for {preset_rate.position.name}.")
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/upload-rates")
+async def upload_client_rates(
+    client_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    company = db.get(models.ClientCompany, client_id)
+    if not company:
+        flash(request, "Client not found.", "error")
+        return RedirectResponse("/admin/clients", status_code=303)
+
+    if not file.filename.endswith(".xlsx"):
+        flash(request, "Please upload a valid .xlsx Excel file.", "error")
+        return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
+        
+    try:
+        file_bytes = await file.read()
+        parsed_rows = process_rates_excel(file_bytes)
+        
+        # Fetch all global positions
+        global_positions = {p.name.lower(): p for p in db.query(models.Position).all()}
+        
+        count = 0
+        for row in parsed_rows:
+            pos_name = row['position']
+            pos_name_lower = pos_name.lower()
+            
+            if pos_name_lower not in global_positions:
+                pos = models.Position(name=pos_name)
+                db.add(pos)
+                db.flush()
+                global_positions[pos_name_lower] = pos
+                
+            pos_id = global_positions[pos_name_lower].id
+            
+            preset_rate = db.query(models.ClientPresetRate).filter_by(client_id=company.id, position_id=pos_id).first()
+            if preset_rate:
+                preset_rate.pay_rate_l1 = row['l1']['pay']
+                preset_rate.bill_rate_l1 = row['l1']['bill']
+                preset_rate.markup_l1 = row['l1']['markup']
+                preset_rate.pay_rate_l2 = row['l2']['pay']
+                preset_rate.bill_rate_l2 = row['l2']['bill']
+                preset_rate.markup_l2 = row['l2']['markup']
+                preset_rate.pay_rate_l3 = row['l3']['pay']
+                preset_rate.bill_rate_l3 = row['l3']['bill']
+                preset_rate.markup_l3 = row['l3']['markup']
+                
+                db.add(models.ClientPresetRateHistory(
+                    preset_rate=preset_rate,
+                    pay_rate_l1=row['l1']['pay'], bill_rate_l1=row['l1']['bill'], markup_l1=row['l1']['markup'],
+                    pay_rate_l2=row['l2']['pay'], bill_rate_l2=row['l2']['bill'], markup_l2=row['l2']['markup'],
+                    pay_rate_l3=row['l3']['pay'], bill_rate_l3=row['l3']['bill'], markup_l3=row['l3']['markup'],
+                    changed_by=user.id
+                ))
+            else:
+                preset_rate = models.ClientPresetRate(
+                    client_id=company.id,
+                    position_id=pos_id,
+                    pay_rate_l1=row['l1']['pay'], bill_rate_l1=row['l1']['bill'], markup_l1=row['l1']['markup'],
+                    pay_rate_l2=row['l2']['pay'], bill_rate_l2=row['l2']['bill'], markup_l2=row['l2']['markup'],
+                    pay_rate_l3=row['l3']['pay'], bill_rate_l3=row['l3']['bill'], markup_l3=row['l3']['markup'],
+                )
+                db.add(preset_rate)
+                db.flush()
+                db.add(models.ClientPresetRateHistory(
+                    preset_rate=preset_rate,
+                    pay_rate_l1=row['l1']['pay'], bill_rate_l1=row['l1']['bill'], markup_l1=row['l1']['markup'],
+                    pay_rate_l2=row['l2']['pay'], bill_rate_l2=row['l2']['bill'], markup_l2=row['l2']['markup'],
+                    pay_rate_l3=row['l3']['pay'], bill_rate_l3=row['l3']['bill'], markup_l3=row['l3']['markup'],
+                    changed_by=user.id
+                ))
+            count += 1
+            
+        db.commit()
+        flash(request, f"Successfully processed preset rates for {count} positions.")
+    except Exception as e:
+        flash(request, f"Error processing file: {str(e)}", "error")
+        
+    return RedirectResponse(f"/admin/clients/{client_id}", status_code=303)
 
 @router.post("/clients/{client_id}/approve")
 def approve_client(
@@ -534,11 +720,73 @@ def positions(
     )
 
 
+@router.get("/positions/template")
+def positions_template(user: models.User = Depends(require("admin"))):
+    return FileResponse(
+        "default_rates.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="default_rates_template.xlsx"
+    )
+
+
+@router.post("/positions/upload")
+async def upload_positions(
+    request: Request,
+    file: UploadFile = File(...),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    if not file.filename.endswith(".xlsx"):
+        flash(request, "Please upload a valid .xlsx Excel file.", "error")
+        return RedirectResponse("/admin/positions", status_code=303)
+        
+    try:
+        file_bytes = await file.read()
+        parsed_rows = process_rates_excel(file_bytes)
+        
+        count = 0
+        for row in parsed_rows:
+            pos_name = row['position']
+            pos = db.query(models.Position).filter_by(name=pos_name).first()
+            if not pos:
+                pos = models.Position(name=pos_name)
+                db.add(pos)
+                
+            pos.default_pay_rate_l1 = row['l1']['pay']
+            pos.default_bill_rate_l1 = row['l1']['bill']
+            pos.default_markup_l1 = row['l1']['markup']
+            
+            pos.default_pay_rate_l2 = row['l2']['pay']
+            pos.default_bill_rate_l2 = row['l2']['bill']
+            pos.default_markup_l2 = row['l2']['markup']
+            
+            pos.default_pay_rate_l3 = row['l3']['pay']
+            pos.default_bill_rate_l3 = row['l3']['bill']
+            pos.default_markup_l3 = row['l3']['markup']
+            count += 1
+            
+        db.commit()
+        flash(request, f"Successfully processed {count} positions from Excel.")
+    except Exception as e:
+        flash(request, f"Error processing file: {str(e)}", "error")
+        
+    return RedirectResponse("/admin/positions", status_code=303)
+
+
 @router.post("/positions")
 def add_position(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
+    default_pay_rate_l1: float = Form(0),
+    default_bill_rate_l1: float = Form(0),
+    default_markup_l1: float = Form(0),
+    default_pay_rate_l2: float = Form(0),
+    default_bill_rate_l2: float = Form(0),
+    default_markup_l2: float = Form(0),
+    default_pay_rate_l3: float = Form(0),
+    default_bill_rate_l3: float = Form(0),
+    default_markup_l3: float = Form(0),
     user: models.User = Depends(require("admin")),
     db: Session = Depends(get_db),
 ):
@@ -548,9 +796,49 @@ def add_position(
     elif db.query(models.Position).filter_by(name=name).first():
         flash(request, "That position already exists.", "error")
     else:
-        db.add(models.Position(name=name, description=description.strip()))
+        db.add(models.Position(
+            name=name, 
+            description=description.strip(),
+            default_pay_rate_l1=default_pay_rate_l1, default_bill_rate_l1=default_bill_rate_l1, default_markup_l1=default_markup_l1,
+            default_pay_rate_l2=default_pay_rate_l2, default_bill_rate_l2=default_bill_rate_l2, default_markup_l2=default_markup_l2,
+            default_pay_rate_l3=default_pay_rate_l3, default_bill_rate_l3=default_bill_rate_l3, default_markup_l3=default_markup_l3,
+        ))
         db.commit()
         flash(request, f"Position '{name}' added to the catalog.")
+    return RedirectResponse("/admin/positions", status_code=303)
+
+
+@router.post("/positions/{position_id}/update")
+def update_position(
+    position_id: int,
+    request: Request,
+    default_pay_rate_l1: float = Form(0),
+    default_bill_rate_l1: float = Form(0),
+    default_markup_l1: float = Form(0),
+    default_pay_rate_l2: float = Form(0),
+    default_bill_rate_l2: float = Form(0),
+    default_markup_l2: float = Form(0),
+    default_pay_rate_l3: float = Form(0),
+    default_bill_rate_l3: float = Form(0),
+    default_markup_l3: float = Form(0),
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    p = db.get(models.Position, position_id)
+    if not p:
+        flash(request, "Position not found.", "error")
+    else:
+        p.default_pay_rate_l1 = default_pay_rate_l1
+        p.default_bill_rate_l1 = default_bill_rate_l1
+        p.default_markup_l1 = default_markup_l1
+        p.default_pay_rate_l2 = default_pay_rate_l2
+        p.default_bill_rate_l2 = default_bill_rate_l2
+        p.default_markup_l2 = default_markup_l2
+        p.default_pay_rate_l3 = default_pay_rate_l3
+        p.default_bill_rate_l3 = default_bill_rate_l3
+        p.default_markup_l3 = default_markup_l3
+        db.commit()
+        flash(request, f"Default rates for '{p.name}' updated.")
     return RedirectResponse("/admin/positions", status_code=303)
 
 
@@ -938,20 +1226,105 @@ def payroll_hub(
 @router.get("/timesheets")
 def admin_timesheets(
     request: Request,
+    date_from: str = "",
+    date_to: str = "",
+    disputed: str = "all",
+    status: str = "all",
+    locked: str = "all",
+    client_id: str = "",
+    location_id: str = "",
     user: models.User = Depends(require("admin")),
     db: Session = Depends(get_db),
 ):
-    rows = (
+    today = date.today()
+    days_since_monday = today.weekday()
+    default_from = today - timedelta(days=days_since_monday + 7)
+    default_to = default_from + timedelta(days=6)
+
+    try:
+        df = date.fromisoformat(date_from) if date_from else default_from
+        dt = date.fromisoformat(date_to) if date_to else default_to
+    except ValueError:
+        df, dt = default_from, default_to
+
+    if not date_from:
+        date_from = default_from.isoformat()
+    if not date_to:
+        date_to = default_to.isoformat()
+
+    base = (
         db.query(models.Timesheet)
         .join(models.Assignment)
         .join(models.Shift)
+        .filter(models.Shift.shift_date >= df, models.Shift.shift_date <= dt)
+    )
+
+    if disputed == "yes":
+        base = base.filter(models.Timesheet.is_disputed == True)
+    elif disputed == "no":
+        base = base.filter(models.Timesheet.is_disputed == False)
+
+    if status in ("pending", "submitted", "approved"):
+        base = base.filter(models.Timesheet.status == status)
+
+    if locked == "yes":
+        base = base.filter(models.Timesheet.is_closed == True)
+    elif locked == "no":
+        base = base.filter(models.Timesheet.is_closed == False)
+
+    if client_id:
+        try:
+            base = base.filter(models.Shift.client_id == int(client_id))
+        except ValueError:
+            pass
+
+    if location_id:
+        try:
+            base = base.filter(models.Shift.location_id == int(location_id))
+        except ValueError:
+            pass
+
+    timesheets = (
+        base.filter(models.Timesheet.deleted_at == None)
+        .order_by(models.Shift.shift_date.desc(), models.Timesheet.id.desc())
+        .all()
+    )
+    deleted_timesheets = (
+        db.query(models.Timesheet)
+        .join(models.Assignment)
+        .join(models.Shift)
+        .filter(models.Timesheet.deleted_at != None)
         .order_by(models.Timesheet.id.desc())
         .all()
     )
+
+    clients = db.query(models.ClientCompany).order_by(models.ClientCompany.name).all()
+    locations = (
+        db.query(models.Location)
+        .join(models.ClientCompany)
+        .order_by(models.ClientCompany.name, models.Location.name)
+        .all()
+    )
+
     return templates.TemplateResponse(
         request,
         "admin/timesheets.html",
-        {"user": user, "timesheets": rows},
+        {
+            "user": user,
+            "timesheets": timesheets,
+            "deleted_timesheets": deleted_timesheets,
+            "clients": clients,
+            "locations": locations,
+            "filters": {
+                "date_from": date_from,
+                "date_to": date_to,
+                "disputed": disputed,
+                "status": status,
+                "locked": locked,
+                "client_id": client_id,
+                "location_id": location_id,
+            },
+        },
     )
 
 
@@ -967,6 +1340,9 @@ def admin_close_timesheet(
         flash(request, "Timesheet not found.", "error")
         return RedirectResponse("/admin/timesheets", status_code=303)
     t.is_closed = not t.is_closed
+    event_type = "admin_locked" if t.is_closed else "admin_unlocked"
+    log_timesheet_event(db, t.id, event_type, user.id, "admin",
+                        "Timesheet locked." if t.is_closed else "Timesheet unlocked.")
     db.commit()
     status_str = "closed (locked)" if t.is_closed else "re-opened (unlocked)"
     flash(request, f"Timesheet for {t.assignment.employee.name} has been {status_str}.")
@@ -1029,14 +1405,64 @@ def admin_edit_timesheet(
 
     t.is_disputed = is_disputed
     t.dispute_reason = dispute_reason.strip() or None
-    
+
     # If edited, ensure status is approved
     t.status = "approved"
     if not t.approved_at:
         t.approved_at = datetime.utcnow()
-        
+
+    bill_start = t.billing_start_time or t.start_time
+    bill_end = t.billing_end_time or t.end_time
+    log_timesheet_event(
+        db, t.id, "admin_edit", user.id, "admin",
+        f"Admin override · Employee: {t.start_time}–{t.end_time}"
+        + (f" (meal {t.meal_start_time}–{t.meal_end_time})" if t.meal_start_time else " (no break)")
+        + f" · Billing: {bill_start}–{bill_end}"
+        + (f" (meal {t.billing_meal_start_time}–{t.billing_meal_end_time})" if t.billing_meal_start_time else "")
+        + f" · {t.billing_hours:.2f} hrs billed."
+        + (f" Dispute: {t.dispute_reason}" if t.is_disputed and t.dispute_reason else ""),
+    )
+
     db.commit()
     flash(request, f"Timesheet updated successfully.")
+    return RedirectResponse("/admin/timesheets", status_code=303)
+
+
+@router.post("/timesheets/{timesheet_id}/delete")
+def admin_delete_timesheet(
+    timesheet_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    t = db.get(models.Timesheet, timesheet_id)
+    if not t or t.deleted_at:
+        flash(request, "Timesheet not found.", "error")
+        return RedirectResponse("/admin/timesheets", status_code=303)
+    t.deleted_at = datetime.utcnow()
+    t.deleted_by = user.id
+    log_timesheet_event(db, t.id, "deleted", user.id, "admin", "Timesheet soft-deleted.")
+    db.commit()
+    flash(request, f"Timesheet for {t.assignment.employee.name} has been deleted.")
+    return RedirectResponse("/admin/timesheets", status_code=303)
+
+
+@router.post("/timesheets/{timesheet_id}/restore")
+def admin_restore_timesheet(
+    timesheet_id: int,
+    request: Request,
+    user: models.User = Depends(require("admin")),
+    db: Session = Depends(get_db),
+):
+    t = db.get(models.Timesheet, timesheet_id)
+    if not t or not t.deleted_at:
+        flash(request, "Timesheet not found.", "error")
+        return RedirectResponse("/admin/timesheets", status_code=303)
+    t.deleted_at = None
+    t.deleted_by = None
+    log_timesheet_event(db, t.id, "restored", user.id, "admin", "Timesheet restored from deleted.")
+    db.commit()
+    flash(request, f"Timesheet for {t.assignment.employee.name} has been restored.")
     return RedirectResponse("/admin/timesheets", status_code=303)
 
 

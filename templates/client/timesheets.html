@@ -68,15 +68,19 @@
           {% if t.meal_start_time %}Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }}{% else %}No break{% endif %}
         </td>
         <td>
+          <strong>{{ t.billing_start_time or t.start_time }}–{{ t.billing_end_time or t.end_time }}</strong>
+          {% if t.billing_meal_start_time %}
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">Meal: {{ t.billing_meal_start_time }}–{{ t.billing_meal_end_time }} ({{ t.client_break_minutes }}m)</div>
+          {% elif t.meal_start_time %}
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">Meal: {{ t.meal_start_time }}–{{ t.meal_end_time }} ({{ t.employee_break_minutes }}m)</div>
+          {% else %}
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">No break</div>
+          {% endif %}
           {% if t.is_disputed %}
-            <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">Disputed</span>
-            <strong>{{ t.billing_start_time }}–{{ t.billing_end_time }}</strong>
-            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">
-              Meal: {% if t.billing_meal_start_time %}{{ t.billing_meal_start_time }}–{{ t.billing_meal_end_time }}{% else %}No break{% endif %}
-            </div>
+            <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep); margin-top:4px; display:inline-block">Disputed</span>
             <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">Reason: {{ t.dispute_reason or '—' }}</div>
           {% else %}
-            <span style="color:var(--muted)">Same as claimed</span>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px">Same as claimed</div>
           {% endif %}
         </td>
         <td>

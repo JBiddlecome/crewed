@@ -9,8 +9,8 @@ ADMIN_EMAIL = "admin@crewed.app"
 ADMIN_PASSWORD = "CrewedAdmin1!"
 
 POSITIONS = [
-    "Server", "Banquet Server", "Bartender", "Barback", "Busser", "Food Runner",
-    "Host", "Line Cook", "Prep Cook", "Dishwasher", "Barista", "Event Captain",
+    "Server", "Bartender", "Barback", "Busser", "Food Runner",
+    "Host", "Prep Cook", "Dishwasher", "Barista", "Event Captain",
     "Concession Worker", "Housekeeper",
 ]
 

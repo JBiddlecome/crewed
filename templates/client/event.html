@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ event.name }} · {{ event.event_date|dt }} — Crewed{% endblock %}
+{% block heading %}{{ event.name }}{% endblock %}
+{% block subheading %}<div class="sub">{{ event.event_date.strftime('%A') }}, {{ event.event_date|dt }} · {{ event.address1 }}, {{ event.city }}, {{ event.state }}</div>{% endblock %}
+{% block actions %}
+  <div style="display:flex;gap:8px">
+    <a class="btn btn-ghost" href="/client/shifts?year={{ event.event_date.year }}&month={{ event.event_date.month }}">← Calendar</a>
+    <a class="btn" href="/client/shifts/new">+ Post a shift</a>
+  </div>
+{% endblock %}
+{% block content %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Event details</h2>
+    <p class="card-note">These details apply to <strong>every shift at this event</strong>. Address and parking are snapshotted from the location — edit them here without changing the master location record.</p>
+    <form method="post" action="/client/events/{{ event.id }}/details">
+      <div class="form-row">
+        <div class="field" style="flex:2">
+          <label for="name">Event / venue name</label>
+          <input id="name" name="name" value="{{ event.name }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="address1">Address</label>
+        <input id="address1" name="address1" value="{{ event.address1 }}">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="address2">Suite / floor</label>
+          <input id="address2" name="address2" value="{{ event.address2 or '' }}">
+        </div>
+        <div class="field">
+          <label for="city">City</label>
+          <input id="city" name="city" value="{{ event.city }}">
+        </div>
+        <div class="field" style="flex:0.5">
+          <label for="state">State</label>
+          <input id="state" name="state" value="{{ event.state }}" maxlength="2">
+        </div>
+        <div class="field" style="flex:0.7">
+          <label for="zip">ZIP</label>
+          <input id="zip" name="zip" value="{{ event.zip }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="parking">Parking</label>
+        <textarea id="parking" name="parking" rows="2" placeholder="e.g. Free parking in Lot B off 5th St">{{ event.parking or '' }}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="check_in_location">Where to check in</label>
+          <input id="check_in_location" name="check_in_location" value="{{ event.check_in_location or '' }}" placeholder="e.g. Loading dock, rear entrance">
+        </div>
+        <div class="field">
+          <label for="check_in_contact">Check in with</label>
+          <input id="check_in_contact" name="check_in_contact" value="{{ event.check_in_contact or '' }}" placeholder="e.g. Maria (Event Manager)">
+        </div>
+      </div>
+      <div class="field">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="2" placeholder="Any notes for this event">{{ event.notes or '' }}</textarea>
+      </div>
+      <button class="btn" type="submit">Save event details</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Message the crew</h2>
+    <p class="card-note">
+      Goes to all <strong>{{ confirmed_crew|length }}</strong> confirmed crew member{{ 's' if confirmed_crew|length != 1 }} working {{ event.name }} on {{ event.event_date|dt }}{% if confirmed_crew %}: {% for c in confirmed_crew %}{{ c.first_name }}{{ ", " if not loop.last }}{% endfor %}{% endif %}.
+    </p>
+    <form method="post" action="/client/events/{{ event.id }}/message">
+      <div class="field">
+        <textarea name="body" rows="3" placeholder="e.g. Event start moved up 30 minutes — please arrive by 3:30 PM." required></textarea>
+      </div>
+      <button class="btn" type="submit" {{ 'disabled' if not confirmed_crew }}>Send to all crew</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Shifts at {{ event.name }} on {{ event.event_date|dt }}</h2>
+  {% if day_shifts %}
+  <table class="table">
+    <thead><tr><th>Time</th><th>Position</th><th>Pay</th><th>Staffed</th><th>Details</th><th>Status</th><th class="actions"></th></tr></thead>
+    <tbody>
+      {% for s in day_shifts %}
+      <tr>
+        <td class="strong">{{ s.start_time }}–{{ s.end_time }}</td>
+        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+        <td><span class="rate">{{ s.pay_rate|money }}<small>/hr</small></span></td>
+        <td>{{ s.confirmed_count }}/{{ s.headcount }}{% if s.requested_count %} <span class="chip chip-warn">{{ s.requested_count }} waiting</span>{% endif %}</td>
+        <td style="font-size:.82rem;color:var(--muted)">
+          {% set dd = details[s.id] %}
+          {% if s.parking or s.check_in_location or s.check_in_contact %}<span class="chip chip-warn">custom</span>{% endif %}
+          {{ dd.check_in_contact or dd.check_in_location or dd.parking or '—' }}
+        </td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+        <td class="actions"><a class="btn btn-ghost btn-sm" href="/client/shifts/{{ s.id }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="mark">C</div><p>No shifts at this event yet.</p><a class="btn" href="/client/shifts/new">Post one</a></div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -3,6 +3,81 @@
 {% block heading %}Timesheets Management{% endblock %}
 {% block content %}
 
+<!-- Filter Bar -->
+<div class="card" style="margin-bottom:20px">
+  <form method="get" action="/admin/timesheets" style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+
+      <div class="field" style="margin:0; min-width:140px">
+        <label style="font-size:0.75rem; font-weight:600">Week From</label>
+        <input type="date" name="date_from" value="{{ filters.date_from }}" style="width:100%">
+      </div>
+      <div class="field" style="margin:0; min-width:140px">
+        <label style="font-size:0.75rem; font-weight:600">Week To</label>
+        <input type="date" name="date_to" value="{{ filters.date_to }}" style="width:100%">
+      </div>
+
+      <div class="field" style="margin:0; min-width:180px">
+        <label style="font-size:0.75rem; font-weight:600">Client</label>
+        <select name="client_id" style="width:100%">
+          <option value="">All Clients</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}" {% if filters.client_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" style="margin:0; min-width:200px">
+        <label style="font-size:0.75rem; font-weight:600">Location</label>
+        <select name="location_id" style="width:100%">
+          <option value="">All Locations</option>
+          {% for loc in locations %}
+          <option value="{{ loc.id }}" {% if filters.location_id == loc.id|string %}selected{% endif %}>{{ loc.company.name }} — {{ loc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" style="margin:0; min-width:130px">
+        <label style="font-size:0.75rem; font-weight:600">Status</label>
+        <select name="status" style="width:100%">
+          <option value="all" {% if filters.status == 'all' %}selected{% endif %}>All Statuses</option>
+          <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Pending</option>
+          <option value="submitted" {% if filters.status == 'submitted' %}selected{% endif %}>Submitted</option>
+          <option value="approved" {% if filters.status == 'approved' %}selected{% endif %}>Approved</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin:0; min-width:130px">
+        <label style="font-size:0.75rem; font-weight:600">Disputed</label>
+        <select name="disputed" style="width:100%">
+          <option value="all" {% if filters.disputed == 'all' %}selected{% endif %}>All</option>
+          <option value="yes" {% if filters.disputed == 'yes' %}selected{% endif %}>Disputed Only</option>
+          <option value="no" {% if filters.disputed == 'no' %}selected{% endif %}>Not Disputed</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin:0; min-width:120px">
+        <label style="font-size:0.75rem; font-weight:600">Lock Status</label>
+        <select name="locked" style="width:100%">
+          <option value="all" {% if filters.locked == 'all' %}selected{% endif %}>All</option>
+          <option value="yes" {% if filters.locked == 'yes' %}selected{% endif %}>Locked</option>
+          <option value="no" {% if filters.locked == 'no' %}selected{% endif %}>Open</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:8px; align-items:flex-end; padding-bottom:1px">
+        <button class="btn" type="submit">Apply</button>
+        <a class="btn btn-ghost" href="/admin/timesheets">Reset</a>
+      </div>
+    </div>
+
+    <div style="font-size:0.8rem; color:var(--muted)">
+      Showing <strong>{{ timesheets|length }}</strong> timesheet{{ 's' if timesheets|length != 1 else '' }}
+      for {{ filters.date_from }} – {{ filters.date_to }}
+    </div>
+  </form>
+</div>
+
 <div class="card">
   <h2>All Timesheets</h2>
   {% if timesheets %}
@@ -63,30 +138,61 @@
         </td>
         <td>
           <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+          {% if t.approved_by_user %}
+            <div style="font-size:0.72rem; color:var(--muted); margin-top:3px">Approved by {{ t.approved_by_user.name }}</div>
+          {% endif %}
           {% if t.is_closed %}
-            <span class="badge" style="background-color:var(--plum-deep); color:#fff; margin-top:4px; display:inline-block">Closed</span>
+            <span class="badge" style="background-color:var(--plum-deep); color:#fff; margin-top:4px; display:inline-block">Locked</span>
           {% else %}
             <span class="badge font-weight:600" style="background-color:var(--seafoam-tint); color:var(--seafoam-deep); margin-top:4px; display:inline-block">Open</span>
           {% endif %}
         </td>
         <td>
-          <div style="display:flex; gap:8px">
+          <div style="display:flex; gap:6px; flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="toggleAdminEditForm('{{ t.id }}')">Edit</button>
-            <form method="post" action="/admin/timesheets/{{ t.id }}/close">
+            <button class="btn btn-ghost btn-sm" onclick="toggleHistoryRow('{{ t.id }}')">History{% if t.events %} ({{ t.events|length }}){% endif %}</button>
+            <form method="post" action="/admin/timesheets/{{ t.id }}/close" style="display:inline">
               <button class="btn btn-sm {% if t.is_closed %}btn-soft{% else %}btn-danger{% endif %}" type="submit">
                 {% if t.is_closed %}Unlock{% else %}Lock{% endif %}
               </button>
             </form>
+            <form method="post" action="/admin/timesheets/{{ t.id }}/delete" style="display:inline" onsubmit="return confirm('Soft-delete this timesheet? It can be restored later.')">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+            </form>
           </div>
         </td>
       </tr>
-      
+
+      <!-- History Row -->
+      <tr id="history_row_{{ t.id }}" style="display:none; background-color:#f9f9fb; border-bottom: 2px solid var(--line)">
+        <td colspan="8" style="padding: 16px 24px">
+          <strong style="font-size:0.9rem; color:var(--plum-ink)">Timesheet History</strong>
+          {% if t.events %}
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:0">
+            {% for ev in t.events %}
+            <div style="display:grid; grid-template-columns: 130px 160px 120px 1fr; gap:8px; align-items:start; font-size:0.8rem; padding:6px 0; border-bottom:1px solid var(--line)">
+              <span style="color:var(--muted); white-space:nowrap">{{ ev.occurred_at.strftime('%m/%d/%y %H:%M') }}</span>
+              <span class="badge" style="
+                background-color:{% if ev.event_type in ('deleted','admin_locked') %}var(--coral-tint){% elif ev.event_type in ('restored','admin_unlocked','client_approved') %}var(--seafoam-tint){% elif ev.event_type in ('client_adjusted','client_billing_edit','admin_edit') %}var(--amber-tint){% else %}var(--line){% endif %};
+                color:{% if ev.event_type in ('deleted','admin_locked') %}var(--coral-dark){% elif ev.event_type in ('restored','admin_unlocked','client_approved') %}var(--seafoam-deep){% elif ev.event_type in ('client_adjusted','client_billing_edit','admin_edit') %}var(--amber-deep){% else %}var(--muted){% endif %};
+                font-size:0.72rem; white-space:nowrap; width:fit-content">{{ ev.event_type | replace('_', ' ') | title }}</span>
+              <span style="color:var(--muted)">{{ ev.actor.name if ev.actor else '—' }} <em style="font-size:0.7rem">({{ ev.actor_role }})</em></span>
+              <span>{{ ev.notes or '' }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p style="color:var(--muted); font-size:0.85rem; margin-top:8px">No history recorded yet.</p>
+          {% endif %}
+        </td>
+      </tr>
+
       <!-- Admin Edit Form Row -->
       <tr id="admin_edit_row_{{ t.id }}" style="display:none; background-color:#fcfcfc; border-bottom: 2px solid var(--line)">
         <td colspan="8" style="padding: 20px 30px">
           <form method="post" action="/admin/timesheets/{{ t.id }}/edit" style="display:flex; flex-direction:column; gap:16px">
             <h3 style="font-size:1rem; margin:0">Edit Timesheet Details (Admin Override)</h3>
-            
+
             <div class="grid grid-2" style="gap:20px">
               <!-- Employee hours edit block -->
               <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
@@ -118,7 +224,7 @@
                   </label>
                 </div>
               </div>
-              
+
               <!-- Billing hours edit block -->
               <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
                 <strong style="color:var(--coral-dark); display:block; margin-bottom:10px">2. Client Billed Hours (Invoice)</strong>
@@ -150,7 +256,7 @@
                 </div>
               </div>
             </div>
-            
+
             <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:15px">
               <strong style="color:var(--amber-deep); display:block; margin-bottom:10px">3. Dispute Status</strong>
               <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap">
@@ -158,11 +264,11 @@
                   <input type="checkbox" name="is_disputed" value="true" {% if t.is_disputed %}checked{% endif %}>
                   Mark timesheet as Disputed / Adjusted
                 </label>
-                
+
                 <input type="text" name="dispute_reason" value="{{ t.dispute_reason or '' }}" placeholder="Dispute / Adjustment Reason" style="flex:1; min-width:250px; border:1.5px solid var(--line); border-radius:8px; padding:6px 10px">
               </div>
             </div>
-            
+
             <div style="display:flex; justify-content:flex-end; gap:10px">
               <button class="btn btn-ghost" type="button" onclick="toggleAdminEditForm('{{ t.id }}')">Cancel</button>
               <button class="btn" type="submit">Save Changes</button>
@@ -178,6 +284,74 @@
   {% endif %}
 </div>
 
+{% if deleted_timesheets %}
+<div class="card" style="margin-top:24px; opacity:0.85">
+  <h2 style="color:var(--muted)">Deleted Timesheets</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Employee</th>
+        <th>Client & Shift</th>
+        <th>Claimed</th>
+        <th>Deleted At</th>
+        <th>Deleted By</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in deleted_timesheets %}
+      {% set s = t.assignment.shift %}
+      <tr style="opacity:0.7">
+        <td>{{ s.shift_date|dt }}</td>
+        <td class="strong">{{ t.assignment.employee.name }}</td>
+        <td>
+          <div class="strong">{{ s.company.name }}</div>
+          <div style="font-size:0.8rem; color:var(--muted)">{{ s.position.name }} at {{ s.location.name }}</div>
+        </td>
+        <td style="font-size:0.85rem">
+          {% if t.start_time %}<strong>{{ t.start_time }}–{{ t.end_time }}</strong><br>{{ '%.2f' % t.employee_hours }} hrs{% else %}—{% endif %}
+        </td>
+        <td style="font-size:0.85rem; color:var(--muted)">{{ t.deleted_at.strftime('%m/%d/%y %H:%M') if t.deleted_at else '—' }}</td>
+        <td style="font-size:0.85rem; color:var(--muted)">{{ t.deleted_by_user.name if t.deleted_by_user else '—' }}</td>
+        <td>
+          <div style="display:flex; gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="toggleHistoryRow('del_{{ t.id }}')">History{% if t.events %} ({{ t.events|length }}){% endif %}</button>
+            <form method="post" action="/admin/timesheets/{{ t.id }}/restore" style="display:inline">
+              <button class="btn btn-sm btn-soft" type="submit">Restore</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      <!-- Deleted timesheet history row -->
+      <tr id="history_row_del_{{ t.id }}" style="display:none; background-color:#f9f9fb">
+        <td colspan="7" style="padding: 16px 24px">
+          <strong style="font-size:0.9rem; color:var(--plum-ink)">Timesheet History</strong>
+          {% if t.events %}
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:0">
+            {% for ev in t.events %}
+            <div style="display:grid; grid-template-columns: 130px 160px 120px 1fr; gap:8px; align-items:start; font-size:0.8rem; padding:6px 0; border-bottom:1px solid var(--line)">
+              <span style="color:var(--muted); white-space:nowrap">{{ ev.occurred_at.strftime('%m/%d/%y %H:%M') }}</span>
+              <span class="badge" style="
+                background-color:{% if ev.event_type in ('deleted','admin_locked') %}var(--coral-tint){% elif ev.event_type in ('restored','admin_unlocked','client_approved') %}var(--seafoam-tint){% elif ev.event_type in ('client_adjusted','client_billing_edit','admin_edit') %}var(--amber-tint){% else %}var(--line){% endif %};
+                color:{% if ev.event_type in ('deleted','admin_locked') %}var(--coral-dark){% elif ev.event_type in ('restored','admin_unlocked','client_approved') %}var(--seafoam-deep){% elif ev.event_type in ('client_adjusted','client_billing_edit','admin_edit') %}var(--amber-deep){% else %}var(--muted){% endif %};
+                font-size:0.72rem; white-space:nowrap; width:fit-content">{{ ev.event_type | replace('_', ' ') | title }}</span>
+              <span style="color:var(--muted)">{{ ev.actor.name if ev.actor else '—' }} <em style="font-size:0.7rem">({{ ev.actor_role }})</em></span>
+              <span>{{ ev.notes or '' }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p style="color:var(--muted); font-size:0.85rem; margin-top:8px">No history recorded yet.</p>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <script>
 function toggleAdminEditForm(id) {
   var row = document.getElementById('admin_edit_row_' + id);
@@ -191,6 +365,11 @@ function toggleAdminEditForm(id) {
   } else {
     row.style.display = 'none';
   }
+}
+
+function toggleHistoryRow(id) {
+  var row = document.getElementById('history_row_' + id);
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
 }
 
 function toggleAdminMeal(chk, id, isBilling) {

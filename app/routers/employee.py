@@ -15,6 +15,7 @@ from ..helpers import (
     US_STATES,
     details_map,
     get_past_due_assignment,
+    log_timesheet_event,
     qualifies,
     refresh_shift_status,
     resolved_details,
@@ -815,6 +816,11 @@ def submit_timesheet(
         
     t.status = "submitted"
     t.submitted_at = datetime.utcnow()
+    break_note = f" (meal {t.meal_start_time}–{t.meal_end_time})" if t.meal_start_time else " (no break)"
+    log_timesheet_event(
+        db, t.id, "submitted", user.id, "employee",
+        f"Submitted {t.start_time}–{t.end_time}{break_note} · {t.employee_hours:.2f} hrs.",
+    )
     db.commit()
     flash(request, f"Timesheet submitted — {t.employee_hours:.2f} hours.")
     return RedirectResponse("/employee/myshifts", status_code=303)
@@ -840,12 +846,15 @@ def timeclock_event(
         
     if event_type == "clock_in":
         t.start_time = event_time
+        log_timesheet_event(db, t.id, "clock_in", user.id, "employee", f"Clocked in at {event_time}.")
         flash(request, f"Clocked in at {event_time}.")
     elif event_type == "meal_start":
         t.meal_start_time = event_time
+        log_timesheet_event(db, t.id, "meal_start", user.id, "employee", f"Meal break started at {event_time}.")
         flash(request, f"Meal break started at {event_time}.")
     elif event_type == "meal_end":
         t.meal_end_time = event_time
+        log_timesheet_event(db, t.id, "meal_end", user.id, "employee", f"Meal break ended at {event_time}.")
         flash(request, f"Meal break ended at {event_time}.")
     elif event_type == "clock_out":
         t.end_time = event_time
@@ -858,15 +867,19 @@ def timeclock_event(
                 t.break_minutes = models.minutes_between(t.meal_start_time, t.meal_end_time)
             else:
                 t.break_minutes = 0
-        
+
         if t.employee_hours <= 0:
             flash(request, "Those times don't add up to any worked hours.", "error")
             return RedirectResponse("/employee", status_code=303)
-            
+
         t.status = "submitted"
         t.submitted_at = datetime.utcnow()
+        log_timesheet_event(
+            db, t.id, "clock_out", user.id, "employee",
+            f"Clocked out at {event_time} · {t.employee_hours:.2f} hrs submitted.",
+        )
         flash(request, f"Clocked out at {event_time}. Timesheet submitted ({t.employee_hours:.2f} hours).")
-    
+
     db.commit()
     return RedirectResponse("/employee", status_code=303)
 
@@ -951,6 +964,11 @@ def edit_timesheet(
     t.is_disputed = False
     t.status = "submitted"
     t.submitted_at = datetime.utcnow()
+    break_note = f" (meal {t.meal_start_time}–{t.meal_end_time})" if t.meal_start_time else " (no break)"
+    log_timesheet_event(
+        db, t.id, "employee_edit", user.id, "employee",
+        f"Times revised to {t.start_time}–{t.end_time}{break_note} · {t.employee_hours:.2f} hrs. Reset to pending approval.",
+    )
     db.commit()
     flash(request, f"Timesheet updated — {t.employee_hours:.2f} hours. Sent to client for approval.")
     return RedirectResponse("/employee/myshifts", status_code=303)
