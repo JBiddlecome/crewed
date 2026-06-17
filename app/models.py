@@ -109,6 +109,10 @@ class User(Base):
     profile_picture_declined = Column(Boolean, default=False)
     resume_file = Column(String)
     resume_text = Column(Text)
+    email_confirmed = Column(Boolean, default=False)
+    confirmation_token = Column(String)
+    reset_token = Column(String)
+    reset_token_expires = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("ClientCompany", back_populates="users")

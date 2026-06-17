@@ -122,6 +122,10 @@ def ensure_schema():
         ("interview_notes", "TEXT"),
         ("background_check_date", "DATE"),
         ("background_check_status", "VARCHAR"),
+        ("email_confirmed", "BOOLEAN DEFAULT FALSE"),
+        ("confirmation_token", "VARCHAR"),
+        ("reset_token", "VARCHAR"),
+        ("reset_token_expires", "DATETIME"),
     ]
     with engine.begin() as conn:
         for col, col_type in _new_user_columns:

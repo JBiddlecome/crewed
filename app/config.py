@@ -11,6 +11,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is not set")
 
+SMTP_HOST = os.environ.get("SMTP_HOST")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+FROM_EMAIL = os.environ.get("FROM_EMAIL", "mail@prismtalentgroup.com")
+
 _secret_file = DATA_DIR / "secret_key.txt"
 if os.environ.get("SECRET_KEY"):
     SECRET_KEY = os.environ["SECRET_KEY"]

@@ -25,37 +25,109 @@
 {% endblock %}
 {% block content %}
 
-<div class="card" style="margin-bottom:20px">
-  <div style="display:flex;gap:40px;flex-wrap:wrap">
-    <div style="flex:1;min-width:200px">
-      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Contact</div>
-      {% if company.phone %}<div style="margin-bottom:4px">📞 {{ company.phone }}</div>{% endif %}
-      {% if company.email %}<div style="margin-bottom:4px">✉ {{ company.email }}</div>{% endif %}
-      {% if not company.phone and not company.email %}<div style="color:var(--muted)">—</div>{% endif %}
-    </div>
-    <div style="flex:1;min-width:200px">
-      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Address</div>
-      {% if company.address1 %}
-        <div>{{ company.address1 }}{% if company.address2 %}, {{ company.address2 }}{% endif %}</div>
-        <div>{{ [company.city, company.state, company.zip]|select|join(', ') }}</div>
-      {% else %}
-        <div style="color:var(--muted)">No address on file</div>
+<nav class="page-tabs" id="client-tabs">
+  <button class="page-tab-btn active" data-tab="general">General</button>
+  <button class="page-tab-btn" data-tab="billing">Billing &amp; Rate Settings</button>
+  <button class="page-tab-btn" data-tab="locations">Locations</button>
+  <button class="page-tab-btn" data-tab="alist">A-List</button>
+  <button class="page-tab-btn" data-tab="blocklist">Block List</button>
+  <button class="page-tab-btn" data-tab="users">Users</button>
+  <button class="page-tab-btn" data-tab="positions">Positions</button>
+</nav>
+
+<!-- ── General ── -->
+<div id="tab-general" class="page-tab-panel active">
+
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;gap:40px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Contact</div>
+        {% if company.phone %}<div style="margin-bottom:4px">📞 {{ company.phone }}</div>{% endif %}
+        {% if company.email %}<div style="margin-bottom:4px">✉ {{ company.email }}</div>{% endif %}
+        {% if not company.phone and not company.email %}<div style="color:var(--muted)">—</div>{% endif %}
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Address</div>
+        {% if company.address1 %}
+          <div>{{ company.address1 }}{% if company.address2 %}, {{ company.address2 }}{% endif %}</div>
+          <div>{{ [company.city, company.state, company.zip]|select|join(', ') }}</div>
+        {% else %}
+          <div style="color:var(--muted)">No address on file</div>
+        {% endif %}
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Industry</div>
+        <div>{{ company.industry or '—' }}</div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Status</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          {% if company.status == 'active' %}
+            <span class="badge badge-open" style="align-self:flex-start">Active</span>
+          {% elif company.status == 'prospect' %}
+            <span class="badge" style="align-self:flex-start;background:var(--amber-tint,#fff3cd);color:var(--amber-deep,#856404)">Prospect</span>
+          {% elif company.status == 'inactive' %}
+            <span class="badge badge-cancelled" style="align-self:flex-start">Inactive</span>
+          {% elif company.status == 'terminated' %}
+            <span class="badge" style="align-self:flex-start;background:#f8d7da;color:#842029">Terminated</span>
+          {% endif %}
+          {% if company.portal_approved %}
+            <span class="badge badge-open" style="align-self:flex-start">Portal Activated</span>
+          {% else %}
+            <span class="badge" style="align-self:flex-start;background:var(--amber-tint,#fff3cd);color:var(--amber-deep,#856404)">Pending Activation</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if company.notes %}
+      <div style="flex:2;min-width:240px">
+        <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Notes</div>
+        <div style="color:var(--muted);font-size:.9rem;white-space:pre-wrap">{{ company.notes }}</div>
+      </div>
       {% endif %}
     </div>
-    <div style="flex:1;min-width:200px">
-      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Industry</div>
-      <div>{{ company.industry or '—' }}</div>
-    </div>
-    {% if company.notes %}
-    <div style="flex:2;min-width:240px">
-      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Notes</div>
-      <div style="color:var(--muted);font-size:.9rem;white-space:pre-wrap">{{ company.notes }}</div>
-    </div>
-    {% endif %}
   </div>
+
+  {% if not company.portal_approved %}
+  <div class="card" style="margin-bottom:20px;border-left:4px solid var(--amber-deep,#856404);background:var(--amber-tint,#fff3cd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-weight:600;color:var(--amber-deep,#856404)">Account Pending Activation</div>
+        <div style="font-size:.88rem;color:var(--amber-deep,#856404);margin-top:4px">This client signed up and can set up their account, but cannot place shifts until you activate them.</div>
+      </div>
+      <form method="post" action="/admin/clients/{{ company.id }}/approve">
+        <button class="btn" type="submit" style="background:var(--amber-deep,#856404);color:#fff;border-color:var(--amber-deep,#856404)">Activate Account</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Recent shifts</h2>
+    {% if shifts %}
+    <table class="table">
+      <thead><tr><th>Date</th><th>Position</th><th>Location</th><th>Pay</th><th>Bill</th><th>Staffed</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for s in shifts %}
+        <tr>
+          <td>{{ s.shift_date|dt }}</td>
+          <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
+          <td>{{ s.location.name }}</td>
+          <td>{{ s.pay_rate|money }}</td>
+          <td>{{ s.bill_rate|money }}</td>
+          <td>{{ s.confirmed_count }}/{{ s.headcount }}</td>
+          <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p style="color:var(--muted)">No shifts yet.</p>{% endif %}
+  </div>
+
 </div>
 
-<div class="grid grid-2">
+<!-- ── Billing & Rate Settings ── -->
+<div id="tab-billing" class="page-tab-panel">
+
   <div class="card">
     <h2>Billing &amp; Rate Settings</h2>
     <form class="inline-form" method="post" action="/admin/clients/{{ company.id }}/rate-setting" style="margin-bottom: 16px;">
@@ -100,7 +172,7 @@
         <form method="post" action="/admin/clients/{{ company.id }}/preset-rates" style="border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:12px; background:var(--bg-card);">
           <input type="hidden" name="position_id" value="{{ p.id }}">
           <div style="font-weight:600; margin-bottom:8px;">{{ p.name }}</div>
-          
+
           <!-- Level 1 -->
           <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 1</div>
           <div class="form-row" style="gap:8px;margin-bottom:12px;">
@@ -117,7 +189,7 @@
               <input type="number" name="markup_l1" id="pr_markup_1_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.markup_l1 if pr else '%.2f' % p.default_markup_l1 }}" required oninput="updateBillRate('1_{{ p.id }}')">
             </div>
           </div>
-          
+
           <!-- Level 2 -->
           <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 2</div>
           <div class="form-row" style="gap:8px;margin-bottom:12px;">
@@ -134,7 +206,7 @@
               <input type="number" name="markup_l2" id="pr_markup_2_{{ p.id }}" step="0.01" min="0" value="{{ '%.2f' % pr.markup_l2 if pr else '%.2f' % p.default_markup_l2 }}" required oninput="updateBillRate('2_{{ p.id }}')">
             </div>
           </div>
-          
+
           <!-- Level 3 -->
           <div style="font-size:0.8rem;font-weight:700;color:var(--muted);margin-bottom:4px;">Level 3</div>
           <div class="form-row" style="gap:8px;">
@@ -181,7 +253,7 @@
           }
         }
       </script>
-      
+
       {% if rate_history %}
       <div style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px;">
         <h3>Rate Modification History</h3>
@@ -215,8 +287,183 @@
     {% endif %}
   </div>
 
+</div>
+
+<!-- ── Locations ── -->
+<div id="tab-locations" class="page-tab-panel">
+
   <div class="card">
-    <h2>Portal users</h2>
+    <h2>Locations</h2>
+    {% if company.locations %}
+    <table class="table">
+      <thead><tr><th>Name</th><th>City</th><th>State</th><th>Min wage</th></tr></thead>
+      <tbody>
+        {% for loc in company.locations %}
+        <tr>
+          <td class="strong">{{ loc.name }}</td>
+          <td>{{ loc.city }}</td>
+          <td>{{ loc.state }}</td>
+          <td>{{ wage(db, loc.state)|money }}/hr</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p style="color:var(--muted)">No locations.</p>{% endif %}
+  </div>
+
+</div>
+
+<!-- ── A-List ── -->
+<div id="tab-alist" class="page-tab-panel">
+
+  <div class="card" style="margin-bottom:20px">
+    <h2>A-List (Preferred Crew)</h2>
+    <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
+      Preferred crew members for this client.
+    </p>
+    {% if alist %}
+    <table class="table">
+      <thead><tr><th>Crew Member</th><th>Scope</th><th>Notes</th><th></th></tr></thead>
+      <tbody>
+        {% for entry in alist %}
+        <tr>
+          <td class="strong">
+            {{ entry.employee.name }}
+            <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
+          </td>
+          <td>
+            {% if entry.location %}
+              <span class="badge" style="background-color: var(--seafoam-tint); color: var(--seafoam-deep)">{{ entry.location.name }}</span>
+            {% else %}
+              <span class="badge" style="background-color: var(--line); color: var(--muted)">Client-wide</span>
+            {% endif %}
+          </td>
+          <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.notes or '' }}">
+            {{ entry.notes or '—' }}
+          </td>
+          <td class="actions">
+            <form method="post" action="/admin/clients/{{ company.id }}/crew/alist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from A-List?')" style="display:inline">
+              <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="mark">★</div><p>No crew members on the A-List yet.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Add to A-List</h2>
+    <form method="post" action="/admin/clients/{{ company.id }}/crew/alist">
+      <div class="field">
+        <label for="alist_employee">Crew Member</label>
+        <select id="alist_employee" name="employee_id" required>
+          <option value="">Select crew member...</option>
+          {% for emp in employees %}
+            <option value="{{ emp.id }}">{{ emp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="alist_location">Location Scope</label>
+        <select id="alist_location" name="location_id">
+          <option value="0">All Locations (Client-wide)</option>
+          {% for loc in company.locations %}
+            <option value="{{ loc.id }}">{{ loc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="alist_notes">Notes <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+        <input id="alist_notes" name="notes" placeholder="e.g. Friendly, great chef skill, request first">
+      </div>
+      <button class="btn" type="submit">Add to A-List</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- ── Block List ── -->
+<div id="tab-blocklist" class="page-tab-panel">
+
+  <div class="card" style="margin-bottom:20px">
+    <h2>Block List</h2>
+    <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
+      Blocked crew members. Adding a worker automatically cancels their future shifts.
+    </p>
+    {% if blocklist %}
+    <table class="table">
+      <thead><tr><th>Crew Member</th><th>Scope</th><th>Reason</th><th></th></tr></thead>
+      <tbody>
+        {% for entry in blocklist %}
+        <tr>
+          <td class="strong">
+            {{ entry.employee.name }}
+            <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
+          </td>
+          <td>
+            {% if entry.location %}
+              <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">{{ entry.location.name }}</span>
+            {% else %}
+              <span class="badge" style="background-color: var(--coral-tint); color: var(--coral-dark)">Client-wide</span>
+            {% endif %}
+          </td>
+          <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.reason or '' }}">
+            {{ entry.reason or '—' }}
+          </td>
+          <td class="actions">
+            <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from Block List?')" style="display:inline">
+              <button class="btn btn-danger btn-sm" type="submit">Unblock</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="mark">🚫</div><p>No crew members blocked.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Block a Crew Member</h2>
+    <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist">
+      <div class="field">
+        <label for="block_employee">Crew Member</label>
+        <select id="block_employee" name="employee_id" required>
+          <option value="">Select crew member...</option>
+          {% for emp in employees %}
+            <option value="{{ emp.id }}">{{ emp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="block_location">Location Scope</label>
+        <select id="block_location" name="location_id">
+          <option value="0">All Locations (Client-wide)</option>
+          {% for loc in company.locations %}
+            <option value="{{ loc.id }}">{{ loc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="block_reason">Reason for Blocking <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
+        <input id="block_reason" name="reason" placeholder="e.g. Late, unprofessional behavior">
+      </div>
+      <button class="btn btn-danger" type="submit">Block Crew Member</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- ── Users ── -->
+<div id="tab-users" class="page-tab-panel">
+
+  <div class="card">
+    <h2>Portal Users</h2>
     {% for u in company.users %}
       <div style="padding:6px 0;border-bottom:1px solid var(--line)">
         <span class="strong">{{ u.name }}</span> · <span style="color:var(--muted)">{{ u.email }}</span>
@@ -278,44 +525,14 @@
     </div>
     {% endif %}
   </div>
+
 </div>
 
-{% if not company.portal_approved %}
-<div class="card" style="margin-bottom:20px;border-left:4px solid var(--amber-deep,#856404);background:var(--amber-tint,#fff3cd)">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-    <div>
-      <div style="font-weight:600;color:var(--amber-deep,#856404)">Account Pending Activation</div>
-      <div style="font-size:.88rem;color:var(--amber-deep,#856404);margin-top:4px">This client signed up and can set up their account, but cannot place shifts until you activate them.</div>
-    </div>
-    <form method="post" action="/admin/clients/{{ company.id }}/approve">
-      <button class="btn" type="submit" style="background:var(--amber-deep,#856404);color:#fff;border-color:var(--amber-deep,#856404)">Activate Account</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-<div class="grid grid-2">
-  <div class="card">
-    <h2>Locations</h2>
-    {% if company.locations %}
-    <table class="table">
-      <thead><tr><th>Name</th><th>City</th><th>State</th><th>Min wage</th></tr></thead>
-      <tbody>
-        {% for loc in company.locations %}
-        <tr>
-          <td class="strong">{{ loc.name }}</td>
-          <td>{{ loc.city }}</td>
-          <td>{{ loc.state }}</td>
-          <td>{{ wage(db, loc.state)|money }}/hr</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p style="color:var(--muted)">No locations.</p>{% endif %}
-  </div>
+<!-- ── Positions ── -->
+<div id="tab-positions" class="page-tab-panel">
 
   <div class="card">
-    <h2>Positions &amp; rates</h2>
+    <h2>Positions &amp; Rates</h2>
     {% if company.positions %}
     <table class="table">
       <thead><tr><th>Position</th><th>Pay</th><th>Required certs</th></tr></thead>
@@ -331,172 +548,27 @@
     </table>
     {% else %}<p style="color:var(--muted)">No positions.</p>{% endif %}
   </div>
+
 </div>
 
-<div class="card">
-  <h2>Recent shifts</h2>
-  {% if shifts %}
-  <table class="table">
-    <thead><tr><th>Date</th><th>Position</th><th>Location</th><th>Pay</th><th>Bill</th><th>Staffed</th><th>Status</th></tr></thead>
-    <tbody>
-      {% for s in shifts %}
-      <tr>
-        <td>{{ s.shift_date|dt }}</td>
-        <td>{{ s.position.name }}{% if s.headcount > 1 %} ×{{ s.headcount }}{% endif %}</td>
-        <td>{{ s.location.name }}</td>
-        <td>{{ s.pay_rate|money }}</td>
-        <td>{{ s.bill_rate|money }}</td>
-        <td>{{ s.confirmed_count }}/{{ s.headcount }}</td>
-        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}<p style="color:var(--muted)">No shifts yet.</p>{% endif %}
-</div>
+<script>
+(function () {
+  var tabs = document.querySelectorAll('#client-tabs .page-tab-btn');
+  var panels = document.querySelectorAll('.page-tab-panel');
 
-<div class="grid grid-2" style="margin-top: 20px;">
-  <!-- A-List Column -->
-  <div>
-    <div class="card" style="margin-bottom: 20px;">
-      <h2>A-List (Preferred Crew)</h2>
-      <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
-        Preferred crew members for this client.
-      </p>
-      {% if alist %}
-      <table class="table">
-        <thead><tr><th>Crew Member</th><th>Scope</th><th>Notes</th><th></th></tr></thead>
-        <tbody>
-          {% for entry in alist %}
-          <tr>
-            <td class="strong">
-              {{ entry.employee.name }}
-              <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
-            </td>
-            <td>
-              {% if entry.location %}
-                <span class="badge" style="background-color: var(--seafoam-tint); color: var(--seafoam-deep)">{{ entry.location.name }}</span>
-              {% else %}
-                <span class="badge" style="background-color: var(--line); color: var(--muted)">Client-wide</span>
-              {% endif %}
-            </td>
-            <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.notes or '' }}">
-              {{ entry.notes or '—' }}
-            </td>
-            <td class="actions">
-              <form method="post" action="/admin/clients/{{ company.id }}/crew/alist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from A-List?')" style="display:inline">
-                <button class="btn btn-danger btn-sm" type="submit">Remove</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="empty"><div class="mark">★</div><p>No crew members on the A-List yet.</p></div>
-      {% endif %}
-    </div>
+  function activate(id) {
+    tabs.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === id); });
+    panels.forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + id); });
+    try { history.replaceState(null, '', location.pathname + '?tab=' + id); } catch(e) {}
+  }
 
-    <div class="card">
-      <h2>Add to A-List</h2>
-      <form method="post" action="/admin/clients/{{ company.id }}/crew/alist">
-        <div class="field">
-          <label for="alist_employee">Crew Member</label>
-          <select id="alist_employee" name="employee_id" required>
-            <option value="">Select crew member...</option>
-            {% for emp in employees %}
-              <option value="{{ emp.id }}">{{ emp.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="alist_location">Location Scope</label>
-          <select id="alist_location" name="location_id">
-            <option value="0">All Locations (Client-wide)</option>
-            {% for loc in company.locations %}
-              <option value="{{ loc.id }}">{{ loc.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="alist_notes">Notes <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
-          <input id="alist_notes" name="notes" placeholder="e.g. Friendly, great chef skill, request first">
-        </div>
-        <button class="btn" type="submit">Add to A-List</button>
-      </form>
-    </div>
-  </div>
+  tabs.forEach(function(btn) {
+    btn.addEventListener('click', function() { activate(btn.dataset.tab); });
+  });
 
-  <!-- Block List Column -->
-  <div>
-    <div class="card" style="margin-bottom: 20px;">
-      <h2>Block List</h2>
-      <p style="color:var(--muted); font-size:.9rem; margin-bottom:15px;">
-        Blocked crew members. Adding a worker automatically cancels their future shifts.
-      </p>
-      {% if blocklist %}
-      <table class="table">
-        <thead><tr><th>Crew Member</th><th>Scope</th><th>Reason</th><th></th></tr></thead>
-        <tbody>
-          {% for entry in blocklist %}
-          <tr>
-            <td class="strong">
-              {{ entry.employee.name }}
-              <div style="color:var(--muted); font-size:.78rem; font-weight:400">{{ entry.employee.email }}{% if entry.employee.phone %} · {{ entry.employee.phone }}{% endif %}</div>
-            </td>
-            <td>
-              {% if entry.location %}
-                <span class="badge" style="background-color: var(--amber-tint); color: var(--amber-deep)">{{ entry.location.name }}</span>
-              {% else %}
-                <span class="badge" style="background-color: var(--coral-tint); color: var(--coral-dark)">Client-wide</span>
-              {% endif %}
-            </td>
-            <td style="font-size: .85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ entry.reason or '' }}">
-              {{ entry.reason or '—' }}
-            </td>
-            <td class="actions">
-              <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist/{{ entry.id }}/delete" onsubmit="return confirm('Remove {{ entry.employee.name }} from Block List?')" style="display:inline">
-                <button class="btn btn-danger btn-sm" type="submit">Unblock</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="empty"><div class="mark">🚫</div><p>No crew members blocked.</p></div>
-      {% endif %}
-    </div>
-
-    <div class="card">
-      <h2>Block a Crew Member</h2>
-      <form method="post" action="/admin/clients/{{ company.id }}/crew/blocklist">
-        <div class="field">
-          <label for="block_employee">Crew Member</label>
-          <select id="block_employee" name="employee_id" required>
-            <option value="">Select crew member...</option>
-            {% for emp in employees %}
-              <option value="{{ emp.id }}">{{ emp.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="block_location">Location Scope</label>
-          <select id="block_location" name="location_id">
-            <option value="0">All Locations (Client-wide)</option>
-            {% for loc in company.locations %}
-              <option value="{{ loc.id }}">{{ loc.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="block_reason">Reason for Blocking <span style="text-transform:none;color:var(--muted)">(optional)</span></label>
-          <input id="block_reason" name="reason" placeholder="e.g. Late, unprofessional behavior">
-        </div>
-        <button class="btn btn-danger" type="submit">Block Crew Member</button>
-      </form>
-    </div>
-  </div>
-</div>
+  var init = new URLSearchParams(location.search).get('tab');
+  if (init && document.getElementById('tab-' + init)) { activate(init); }
+})();
+</script>
 
 {% endblock %}
