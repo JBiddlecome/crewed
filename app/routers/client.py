@@ -41,6 +41,12 @@ def dashboard(
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
+    if not user.company:
+        return templates.TemplateResponse(
+            request,
+            "client/pending_link.html",
+            {"user": user},
+        )
     company = user.company
     today = date.today()
     upcoming = (
@@ -539,6 +545,12 @@ def new_shift_form(
     db: Session = Depends(get_db),
 ):
     company = user.company
+    if not company.portal_approved:
+        return templates.TemplateResponse(
+            request,
+            "client/shift_new.html",
+            ctx(request, user, db, not_approved=True, location_wages={}, markup=0, today=date.today().isoformat()),
+        )
     if not company.locations or not company.positions:
         flash(request, "Add at least one location and one position first.", "warning")
         return RedirectResponse("/client/positions" if company.locations else "/client/locations", status_code=303)
@@ -553,6 +565,7 @@ def new_shift_form(
             location_wages=location_wages,
             markup=effective_markup(db, company),
             today=date.today().isoformat(),
+            not_approved=False,
         ),
     )
 
@@ -567,11 +580,15 @@ def create_shift(
     end_time: str = Form(...),
     headcount: int = Form(1),
     pay_rate: float = Form(...),
+    required_level: int = Form(1),
     notes: str = Form(""),
     user: models.User = Depends(require("client")),
     db: Session = Depends(get_db),
 ):
     company = user.company
+    if not company.portal_approved:
+        flash(request, "Your account must be activated before you can place shifts.", "error")
+        return RedirectResponse("/client/shifts/new", status_code=303)
     location = db.get(models.Location, location_id)
     cp = db.get(models.ClientPosition, client_position_id)
     if not location or location.client_id != company.id or not cp or cp.client_id != company.id:
@@ -607,6 +624,7 @@ def create_shift(
         pay_rate=round(pay_rate, 2),
         bill_rate=compute_bill_rate(pay_rate, markup),
         notes=notes.strip(),
+        required_level=max(1, min(3, required_level)),
         status="open",
     )
     db.add(shift)

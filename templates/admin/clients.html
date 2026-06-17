@@ -22,7 +22,7 @@
       {% for c in clients %}
       <tr>
         <td>
-          <span class="strong">{{ c.name }}</span>
+          <span class="strong">{{ c.name }}</span>{% if not c.portal_approved %} <span style="color:#c0392b;font-weight:700" title="Pending activation">!</span>{% endif %}
           {% if c.city or c.state %}
             <div style="font-size:.78rem;color:var(--muted);margin-top:2px">
               {{ [c.city, c.state]|select|join(', ') }}
@@ -70,5 +70,24 @@
   </div>
   {% endif %}
 </div>
+
+{% if unlinked_users %}
+<div class="card" style="margin-top:20px;border-left:4px solid var(--amber-deep,#856404)">
+  <h2 style="margin-bottom:4px">Pending User Assignments</h2>
+  <p style="color:var(--muted);font-size:.88rem;margin-bottom:14px">These users said they already have a company account. Open a client profile to attach them.</p>
+  <table class="table">
+    <thead><tr><th>Name</th><th>Email</th><th>Signed up</th></tr></thead>
+    <tbody>
+      {% for u in unlinked_users %}
+      <tr>
+        <td class="strong">{{ u.name }}</td>
+        <td>{{ u.email }}</td>
+        <td style="color:var(--muted)">{{ u.created_at|dt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% endblock %}

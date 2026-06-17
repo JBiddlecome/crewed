@@ -13,6 +13,11 @@
     {% elif company.status == 'terminated' %}
       <span class="badge" style="margin-left:8px;background:#f8d7da;color:#842029">Terminated</span>
     {% endif %}
+    {% if company.portal_approved %}
+      <span class="badge badge-open" style="margin-left:8px">Portal Activated</span>
+    {% else %}
+      <span class="badge" style="margin-left:8px;background:var(--amber-tint,#fff3cd);color:var(--amber-deep,#856404)">Pending Activation</span>
+    {% endif %}
   </div>
 {% endblock %}
 {% block actions %}
@@ -70,8 +75,77 @@
         <span class="strong">{{ u.name }}</span> · <span style="color:var(--muted)">{{ u.email }}</span>
       </div>
     {% else %}<p style="color:var(--muted)">No users.</p>{% endfor %}
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Add Portal User</div>
+      <form method="post" action="/admin/clients/{{ company.id }}/portal-users">
+        <div class="form-row">
+          <div class="field">
+            <label>First name</label>
+            <input name="first_name" required>
+          </div>
+          <div class="field">
+            <label>Last name</label>
+            <input name="last_name" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input name="email" type="email" required>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input name="password" type="password" minlength="8" required>
+          <div class="hint">At least 8 characters</div>
+        </div>
+        <button class="btn btn-sm" type="submit">Add User</button>
+      </form>
+    </div>
+
+    {% if unlinked_users %}
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="form-section-title" style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Link Existing User</div>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">These users signed up saying they already have a company account. Attach one to this client.</p>
+      <form method="post" id="attach-user-form" action="/admin/clients/{{ company.id }}/attach-user/0">
+        <div class="form-row" style="align-items:flex-end">
+          <div class="field" style="flex:2">
+            <label>User</label>
+            <select name="selected_uid" id="attach-uid-select" required onchange="updateAttachAction(this)">
+              <option value="">Select user…</option>
+              {% for u in unlinked_users %}
+                <option value="{{ u.id }}">{{ u.name }} — {{ u.email }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" style="flex:0;padding-bottom:2px">
+            <button class="btn btn-sm" type="submit">Attach</button>
+          </div>
+        </div>
+      </form>
+      <script>
+        function updateAttachAction(sel) {
+          var uid = sel.value || '0';
+          document.getElementById('attach-user-form').action = '/admin/clients/{{ company.id }}/attach-user/' + uid;
+        }
+      </script>
+    </div>
+    {% endif %}
   </div>
 </div>
+
+{% if not company.portal_approved %}
+<div class="card" style="margin-bottom:20px;border-left:4px solid var(--amber-deep,#856404);background:var(--amber-tint,#fff3cd)">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="font-weight:600;color:var(--amber-deep,#856404)">Account Pending Activation</div>
+      <div style="font-size:.88rem;color:var(--amber-deep,#856404);margin-top:4px">This client signed up and can set up their account, but cannot place shifts until you activate them.</div>
+    </div>
+    <form method="post" action="/admin/clients/{{ company.id }}/approve">
+      <button class="btn" type="submit" style="background:var(--amber-deep,#856404);color:#fff;border-color:var(--amber-deep,#856404)">Activate Account</button>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <div class="grid grid-2">
   <div class="card">

@@ -1,12 +1,7 @@
 {% extends "base.html" %}
-{% if company %}
-  {% block title %}Edit {{ company.name }} — Crewed{% endblock %}
-  {% block heading %}Edit Client{% endblock %}
-  {% block subheading %}<div class="sub">{{ company.name }}</div>{% endblock %}
-{% else %}
-  {% block title %}New Client — Crewed{% endblock %}
-  {% block heading %}New Client{% endblock %}
-{% endif %}
+{% block title %}{% if company %}Edit {{ company.name }}{% else %}New Client{% endif %} — Crewed{% endblock %}
+{% block heading %}{% if company %}Edit Client{% else %}New Client{% endif %}{% endblock %}
+{% block subheading %}{% if company %}<div class="sub">{{ company.name }}</div>{% endif %}{% endblock %}
 
 {% block actions %}
   {% if company %}

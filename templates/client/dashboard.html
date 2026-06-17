@@ -2,8 +2,24 @@
 {% block title %}Dashboard — Crewed{% endblock %}
 {% block heading %}Hi, {{ user.first_name }}{% endblock %}
 {% block subheading %}<div class="sub">{{ company.name }}</div>{% endblock %}
-{% block actions %}<a class="btn" href="/client/shifts/new">+ Post a shift</a>{% endblock %}
+{% block actions %}
+  {% if company.portal_approved %}
+    <a class="btn" href="/client/shifts/new">+ Post a shift</a>
+  {% else %}
+    <a class="btn" href="/client/shifts/new" style="opacity:.6">+ Post a shift</a>
+  {% endif %}
+{% endblock %}
 {% block content %}
+
+{% if not company.portal_approved %}
+<div style="background:var(--amber-tint,#fff3cd);border:1px solid var(--amber-deep,#856404);border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+  <span style="font-size:1.3rem">⏳</span>
+  <div>
+    <strong style="color:var(--amber-deep,#856404)">Account pending activation</strong>
+    <div style="font-size:.88rem;color:var(--amber-deep,#856404)">You can set up your locations and positions, but you will be able to place orders as soon as your account is activated by our team.</div>
+  </div>
+</div>
+{% endif %}
 
 <div class="grid grid-4">
   <div class="stat"><div class="num">{{ open_shifts }}</div><div class="label">Open shifts</div></div>

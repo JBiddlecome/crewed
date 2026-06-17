@@ -62,9 +62,11 @@
             <div class="admin-position-row" style="display:inline-flex; align-items:center; gap:4px; margin: 2px;">
               <span class="chip {% if ep.status == 'approved' %}chip-approved{% elif ep.status == 'declined' %}chip-declined{% else %}chip-pending{% endif %}" {% if ep.status == 'declined' and ep.decline_reason %}title="Declined: {{ ep.decline_reason }}"{% endif %}>
                 {{ ep.position.name }}
-                <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">
-                  ({{ ep.status }})
-                </small>
+                {% if ep.status == 'approved' %}
+                  <small style="font-size:0.7rem; font-weight:700; margin-left:4px;">L{{ ep.level or 2 }}</small>
+                {% else %}
+                  <small style="font-size:0.7rem; font-weight:600; text-transform:uppercase; margin-left:4px;">({{ ep.status }})</small>
+                {% endif %}
               </span>
               {% if ep.status != 'approved' %}
                 <form class="inline-form" method="post" action="/admin/employee-position/{{ ep.id }}/approve" style="display:inline;">

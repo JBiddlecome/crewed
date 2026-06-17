@@ -63,7 +63,8 @@ def signup_client_form(request: Request):
 @router.post("/signup/client")
 def signup_client(
     request: Request,
-    company_name: str = Form(...),
+    has_company_account: str = Form("no"),
+    company_name: str = Form(""),
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
@@ -79,7 +80,30 @@ def signup_client(
         flash(request, "An account with that email already exists.", "error")
         return RedirectResponse("/signup/client", status_code=303)
 
-    company = models.ClientCompany(name=company_name.strip(), phone=phone.strip())
+    if has_company_account == "yes":
+        # Create login only — admin will link them to the right company
+        user = models.User(
+            email=email,
+            password_hash=hash_password(password),
+            first_name=first_name.strip(),
+            last_name=last_name.strip(),
+            role="client",
+            status="active",
+            client_id=None,
+            phone=phone.strip(),
+        )
+        db.add(user)
+        db.commit()
+        request.session["uid"] = user.id
+        flash(request, "Account created! An admin will link you to your company account shortly.")
+        return RedirectResponse("/client", status_code=303)
+
+    # New company signup — pending admin approval before placing shifts
+    name = company_name.strip()
+    if not name:
+        flash(request, "Company name is required.", "error")
+        return RedirectResponse("/signup/client", status_code=303)
+    company = models.ClientCompany(name=name, phone=phone.strip(), portal_approved=False)
     db.add(company)
     db.flush()
     user = models.User(
@@ -95,7 +119,7 @@ def signup_client(
     db.add(user)
     db.commit()
     request.session["uid"] = user.id
-    flash(request, f"Welcome to Crewed, {company.name}! Add a location to get started.")
+    flash(request, f"Welcome to Crewed, {company.name}! Set up your account while we review and activate it.")
     return RedirectResponse("/client", status_code=303)
 
 
